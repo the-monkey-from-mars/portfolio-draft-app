@@ -1,0 +1,30 @@
+name: Nightly Score Calculation
+
+# This is the "Cron" trigger.
+# 08:00 UTC is roughly 3:00 AM EST / 4:00 AM EDT.
+on:
+  schedule:
+    - cron: "0 8 * * *"
+  workflow_dispatch: # This allows you to manually click a "Run Now" button to test it!
+
+jobs:
+  update-scores:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install dependencies (Supabase & Cheerio)
+        run: npm install @supabase/supabase-js cheerio
+
+      - name: Run Score Update Script
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: node scripts/updateScores.js
