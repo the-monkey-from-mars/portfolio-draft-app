@@ -75,10 +75,14 @@ export default async function Home() {
               );
 
               return (
+<<<<<<< HEAD
                 <tr
                   key={user.id}
                   className="odd:bg-gray-800 even:bg-gray-900 border-b-2 border-gray-600 hover:bg-gray-700 transition"
                 >
+=======
+                <tr key={user.id} className="odd:bg-gray-800 even:bg-gray-900 border-b-2 border-gray-600 hover:bg-gray-700 transition">
+>>>>>>> 93f13afe1cc3f9dbdc0817f3210a68e882c8e0f9
                   {/* Sticky User Column */}
                   <td className="px-6 py-4 sticky left-0 bg-gray-800 z-10 border-r border-gray-700 shadow-[2px_0_5px_rgba(0,0,0,0.5)]">
                     <Link
