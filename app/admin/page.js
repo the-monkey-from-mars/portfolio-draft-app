@@ -152,7 +152,7 @@ export default function AdminDashboard() {
     }
   };
 
-  // --- TEMPORARY SEEDING FUNCTIONS ---
+  // --- SMARTER SEEDING FUNCTIONS (NO DUPLICATES) ---
   const seedESPNLeague = async (sportId, apiUrl) => {
     setStatusMessage(`Fetching data from ESPN...`);
     try {
@@ -187,20 +187,35 @@ export default function AdminDashboard() {
         };
       });
 
-      const { error } = await supabase
+      // 1. Fetch existing teams to prevent duplicates
+      const { data: existing } = await supabase
         .from("entities")
-        .insert(entitiesToInsert);
+        .select("api_unique_id")
+        .eq("sport_id", sportId);
+
+      const existingIds = new Set(existing?.map((e) => e.api_unique_id) || []);
+      const newEntities = entitiesToInsert.filter(
+        (e) => !existingIds.has(e.api_unique_id),
+      );
+
+      if (newEntities.length === 0) {
+        setStatusMessage(
+          `✅ All teams are already synced! No duplicates added.`,
+        );
+        return;
+      }
+
+      // 2. Insert ONLY the new teams
+      const { error } = await supabase.from("entities").insert(newEntities);
 
       if (error) {
         console.error(error);
         setStatusMessage(`❌ Error saving teams to database.`);
       } else {
         setStatusMessage(
-          `✅ Successfully seeded ${entitiesToInsert.length} teams!`,
+          `✅ Successfully seeded ${newEntities.length} NEW teams!`,
         );
-        if (selectedSport == sportId) {
-          setSelectedSport("");
-        }
+        if (selectedSport == sportId) setSelectedSport("");
       }
     } catch (err) {
       console.error(err);
@@ -209,23 +224,39 @@ export default function AdminDashboard() {
   };
 
   const seedManualLeague = async (sportId, teamsArray) => {
-    setStatusMessage(`Seeding manual data...`);
+    setStatusMessage(`Checking manual data...`);
+
     const entitiesToInsert = teamsArray.map((name, index) => ({
       sport_id: sportId,
       api_unique_id: `manual_${sportId}_${index}`,
       display_name: name,
     }));
 
-    const { error } = await supabase.from("entities").insert(entitiesToInsert);
+    const { data: existing } = await supabase
+      .from("entities")
+      .select("api_unique_id")
+      .eq("sport_id", sportId);
+
+    const existingIds = new Set(existing?.map((e) => e.api_unique_id) || []);
+    const newEntities = entitiesToInsert.filter(
+      (e) => !existingIds.has(e.api_unique_id),
+    );
+
+    if (newEntities.length === 0) {
+      setStatusMessage(`✅ All manual entries are already synced!`);
+      return;
+    }
+
+    const { error } = await supabase.from("entities").insert(newEntities);
 
     if (error) {
       console.error(error);
       setStatusMessage(`❌ Error saving manual entries.`);
     } else {
-      setStatusMessage(`✅ Successfully seeded ${teamsArray.length} entries!`);
-      if (selectedSport == sportId) {
-        setSelectedSport("");
-      }
+      setStatusMessage(
+        `✅ Successfully seeded ${newEntities.length} NEW entries!`,
+      );
+      if (selectedSport == sportId) setSelectedSport("");
     }
   };
 
@@ -260,16 +291,29 @@ export default function AdminDashboard() {
         };
       });
 
-      const { error } = await supabase
+      const { data: existing } = await supabase
         .from("entities")
-        .insert(entitiesToInsert);
+        .select("api_unique_id")
+        .eq("sport_id", sportId);
+
+      const existingIds = new Set(existing?.map((e) => e.api_unique_id) || []);
+      const newEntities = entitiesToInsert.filter(
+        (e) => !existingIds.has(e.api_unique_id),
+      );
+
+      if (newEntities.length === 0) {
+        setStatusMessage(`✅ All athletes are already synced!`);
+        return;
+      }
+
+      const { error } = await supabase.from("entities").insert(newEntities);
 
       if (error) {
         console.error(error);
         setStatusMessage(`❌ Error saving athletes to database.`);
       } else {
         setStatusMessage(
-          `✅ Successfully seeded ${entitiesToInsert.length} athletes!`,
+          `✅ Successfully seeded ${newEntities.length} NEW athletes!`,
         );
         if (selectedSport == sportId) setSelectedSport("");
       }
