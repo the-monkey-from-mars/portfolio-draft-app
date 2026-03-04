@@ -635,18 +635,14 @@ export default function AdminDashboard() {
 
           <button
             onClick={() =>
-              seedManualLeague(7, [
-                "LOVB Austin",
-                "LOVB Atlanta",
-                "LOVB Houston",
-                "LOVB Madison",
-                "LOVB Omaha",
-                "LOVB Salt Lake",
-              ])
+              seedESPNLeague(
+                7,
+                "https://site.api.espn.com/apis/site/v2/sports/volleyball/womens-college-volleyball/teams?groups=50&limit=400",
+              )
             }
             className="bg-gray-700 hover:bg-gray-600 p-2 rounded text-sm font-bold transition"
           >
-            Sync LOVB Teams
+            Sync Women&apos;s College Volleyball
           </button>
 
           <button
