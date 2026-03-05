@@ -226,11 +226,16 @@ export default function AdminDashboard() {
   const seedManualLeague = async (sportId, teamsArray) => {
     setStatusMessage(`Checking manual data...`);
 
-    const entitiesToInsert = teamsArray.map((name, index) => ({
-      sport_id: sportId,
-      api_unique_id: `manual_${sportId}_${index}`,
-      display_name: name,
-    }));
+    const entitiesToInsert = teamsArray.map((name) => {
+      // Create a clean "slug" from the name (e.g., "Joshua Van" -> "joshua-van")
+      const nameSlug = name.toLowerCase().replace(/[^a-z0-9]/g, "-");
+
+      return {
+        sport_id: sportId,
+        api_unique_id: `manual_${sportId}_${nameSlug}`, // ID is now name-based!
+        display_name: name,
+      };
+    });
 
     const { data: existing } = await supabase
       .from("entities")
