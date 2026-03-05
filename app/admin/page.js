@@ -1048,6 +1048,7 @@ export default function AdminDashboard() {
                 "Movsar Evloev",
                 "Aljamain Sterling",
                 "Cory Sandhagen",
+                "Joshua Van",
                 "Petr Yan",
                 "Merab Dvalishvili",
                 "Deiveson Figueiredo",
