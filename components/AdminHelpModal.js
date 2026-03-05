@@ -27,7 +27,7 @@ export default function AdminHelpModal() {
               Offseason / New Year Checklist
             </h2>
 
-            <div className="space-y-4 text-gray-300 text-sm max-h-[75vh] overflow-y-auto pr-2">
+            <div className="space-y-4 text-gray-300 text-sm max-h-[75vh] overflow-y-auto pr-2 pb-6">
               <div className="p-3 bg-gray-800 rounded border border-gray-700">
                 <h3 className="font-bold text-white mb-1">
                   1. Syncing Promoted Teams (Upsert)
@@ -44,9 +44,9 @@ export default function AdminHelpModal() {
 
               <div className="p-3 bg-gray-800 rounded border border-gray-700">
                 <h3 className="font-bold text-white mb-1">
-                  2. Creating the New Contest Year
+                  2. Creating the New Contest Year & Portfolios
                 </h3>
-                <p>
+                <p className="mb-2">
                   Before drafting, go to the Supabase SQL Editor and insert a
                   new portfolio class: <br />
                   <code className="text-xs bg-black p-1 rounded mt-1 block text-green-400">
@@ -54,6 +54,19 @@ export default function AdminHelpModal() {
                     27-28&apos;);
                   </code>
                 </p>
+                <div className="mt-3 p-2 bg-gray-900 border border-blue-900/50 rounded">
+                  <p className="text-blue-400 font-bold mb-1">
+                    🔮 Future Code Update:
+                  </p>
+                  <p className="text-xs">
+                    Once the new draft happens, you will want to add a{" "}
+                    <code>portfolio_id</code> column to your{" "}
+                    <code>roster_picks</code> table. Then, update the
+                    `app/page.js` fetch logic to filter by that{" "}
+                    <code>portfolio_id</code> instead of pulling all historical
+                    database records at once!
+                  </p>
+                </div>
               </div>
 
               <div className="p-3 bg-gray-800 rounded border border-gray-700">
@@ -84,16 +97,50 @@ export default function AdminHelpModal() {
 
               <div className="p-3 bg-gray-800 rounded border border-gray-700">
                 <h3 className="font-bold text-white mb-1">
-                  5. MMA (UFC) & LOVB Manual Data
+                  5. MMA (UFC) Manual Data
                 </h3>
                 <p>
                   Because free APIs rarely provide metadata like &quot;Title
                   Fights&quot; or &quot;Top 5 Opponents,&quot; MMA cannot be
                   fully automated through ESPN. When you are ready, you will
                   need to create a dedicated Supabase table to manually log
-                  fight results and LOVB standings, and point your backend
-                  scripts to read from those tables.
+                  fight results, and point your backend scripts to read from
+                  those tables.
                 </p>
+              </div>
+
+              <div className="p-3 bg-gray-900 rounded border border-yellow-600/50">
+                <h3 className="font-bold text-yellow-500 mb-2 border-b border-gray-700 pb-1">
+                  6. Phase 3: The Waiver Wire Rollover
+                </h3>
+                <p className="mb-3">
+                  After the February Mega-Draft is complete and the new
+                  season-year has officially begun, the Commissioner must reset
+                  the Waiver Wire engine for the upcoming calendar year.
+                </p>
+                <ol className="list-decimal pl-5 text-gray-400 space-y-2">
+                  <li>
+                    <strong className="text-white">Reset Priorities:</strong> Go
+                    to the Supabase <code>users</code> table and manually update
+                    the <code>waiver_priority</code> column based on the new
+                    draft order (1 gets first dibs).
+                  </li>
+                  <li>
+                    <strong className="text-white">Set New Deadlines:</strong>{" "}
+                    Open the Supabase SQL Editor and run the annual UPDATE
+                    script to set the exact <code>waiver_deadline</code>{" "}
+                    timestamps for all 17 sports.
+                  </li>
+                  <li>
+                    <strong className="text-white">
+                      Clear Old Claims (Optional):
+                    </strong>{" "}
+                    You can delete or archive the previous year&apos;s{" "}
+                    <code>waiver_claims</code> to keep the database clean,
+                    though the bot will automatically ignore them if the dates
+                    are past.
+                  </li>
+                </ol>
               </div>
             </div>
           </div>
