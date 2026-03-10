@@ -58,17 +58,39 @@ export default async function Home({ searchParams }) {
 
   return (
     <main className="p-4 md:p-8 text-white min-h-screen bg-gray-950">
-      <div className="flex justify-between items-start mb-8">
+      {/* Mobile header */}
+      <div className="md:hidden mb-6">
+        <div className="flex items-center justify-between mb-3">
+          <MobileNav />
+          <h1 className="text-xl font-bold text-center flex-1 mx-3">
+            Sports Portfolio Supremacy
+          </h1>
+          <YearDropdown currentYear={selectedYear} />
+        </div>
+        <p className="text-gray-400 text-sm text-center">
+          <span>Live Leaderboard</span>
+          <span className="mx-2 text-gray-600">|</span>
+          {selectedYear === "2026-2027" ? (
+            <DraftResultsModal />
+          ) : (
+            <span className="text-yellow-500 font-semibold tracking-wide">
+              {draftInfo.label}:{" "}
+              <span className="text-white">{draftInfo.date}</span>
+            </span>
+          )}
+        </p>
+      </div>
+
+      {/* Desktop header */}
+      <div className="hidden md:flex justify-between items-center mb-8">
         <div>
           <div className="flex items-center">
-            <h1 className="text-xl md:text-3xl font-bold">
-              Sports Portfolio Supremacy
-            </h1>
+            <h1 className="text-3xl font-bold">Sports Portfolio Supremacy</h1>
             <YearDropdown currentYear={selectedYear} />
           </div>
-          <p className="text-gray-400 mt-2 flex items-center flex-wrap gap-1">
-            <span>Live Leaderboard</span>
-            <span className="mx-2 text-gray-600 hidden sm:inline">|</span>
+          <p className="text-gray-400 mt-2 flex items-center">
+            Live Leaderboard
+            <span className="mx-3 text-gray-600">|</span>
             {selectedYear === "2026-2027" ? (
               <DraftResultsModal />
             ) : (
@@ -80,8 +102,7 @@ export default async function Home({ searchParams }) {
           </p>
         </div>
 
-        {/* Desktop nav */}
-        <div className="hidden md:flex space-x-4">
+        <div className="flex space-x-4">
           <RulesModal />
           <WaiverRulesModal />
           <Link
@@ -96,11 +117,6 @@ export default async function Home({ searchParams }) {
           >
             Admin Draft Room
           </Link>
-        </div>
-
-        {/* Mobile nav */}
-        <div className="md:hidden">
-          <MobileNav />
         </div>
       </div>
 
