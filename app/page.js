@@ -5,6 +5,7 @@ import RulesModal from "../components/RulesModal";
 import WaiverRulesModal from "../components/WaiverRulesModal";
 import DraftResultsModal from "../components/DraftResultsModal";
 import YearDropdown from "../components/YearDropdown";
+import MobileNav from "../components/MobileNav";
 
 export const revalidate = 0;
 
@@ -44,17 +45,30 @@ export default async function Home({ searchParams }) {
     .map(([id, config]) => ({ id: Number(id), ...config }))
     .sort((a, b) => a.order - b.order);
 
+  // Sort users by total cumulative points (descending)
+  const sortedUsers = [...(users || [])].sort((a, b) => {
+    const aTotal = (rosterPicks || [])
+      .filter((p) => p.user_id === a.id)
+      .reduce((sum, p) => sum + (Number(p.total_score) || 0), 0);
+    const bTotal = (rosterPicks || [])
+      .filter((p) => p.user_id === b.id)
+      .reduce((sum, p) => sum + (Number(p.total_score) || 0), 0);
+    return bTotal - aTotal;
+  });
+
   return (
-    <main className="p-8 text-white min-h-screen bg-gray-950">
-      <div className="flex justify-between items-center mb-8">
+    <main className="p-4 md:p-8 text-white min-h-screen bg-gray-950">
+      <div className="flex justify-between items-start mb-8">
         <div>
           <div className="flex items-center">
-            <h1 className="text-3xl font-bold">Sports Portfolio Supremacy</h1>
+            <h1 className="text-xl md:text-3xl font-bold">
+              Sports Portfolio Supremacy
+            </h1>
             <YearDropdown currentYear={selectedYear} />
           </div>
-          <p className="text-gray-400 mt-2 flex items-center">
-            Live Leaderboard
-            <span className="mx-3 text-gray-600">|</span>
+          <p className="text-gray-400 mt-2 flex items-center flex-wrap gap-1">
+            <span>Live Leaderboard</span>
+            <span className="mx-2 text-gray-600 hidden sm:inline">|</span>
             {selectedYear === "2026-2027" ? (
               <DraftResultsModal />
             ) : (
@@ -66,7 +80,8 @@ export default async function Home({ searchParams }) {
           </p>
         </div>
 
-        <div className="flex space-x-4">
+        {/* Desktop nav */}
+        <div className="hidden md:flex space-x-4">
           <RulesModal />
           <WaiverRulesModal />
           <Link
@@ -81,6 +96,11 @@ export default async function Home({ searchParams }) {
           >
             Admin Draft Room
           </Link>
+        </div>
+
+        {/* Mobile nav */}
+        <div className="md:hidden">
+          <MobileNav />
         </div>
       </div>
 
@@ -111,7 +131,7 @@ export default async function Home({ searchParams }) {
           </thead>
 
           <tbody className="divide-y divide-gray-800 bg-gray-800">
-            {users?.map((user) => {
+            {sortedUsers.map((user, index) => {
               const userPicks =
                 rosterPicks?.filter((p) => p.user_id === user.id) || [];
 
@@ -127,12 +147,17 @@ export default async function Home({ searchParams }) {
                 >
                   {/* Sticky User Column */}
                   <td className="px-6 py-4 sticky left-0 bg-gray-800 z-10 border-r border-gray-700 shadow-[2px_0_5px_rgba(0,0,0,0.5)]">
-                    <Link
-                      href={`/user/${user.id}`}
-                      className="font-bold text-lg text-white hover:underline"
-                    >
-                      {user.name}
-                    </Link>
+                    <div className="flex items-center gap-2">
+                      <span className="text-gray-500 text-sm font-mono">
+                        {index + 1}.
+                      </span>
+                      <Link
+                        href={`/user/${user.id}`}
+                        className="font-bold text-lg text-white hover:underline"
+                      >
+                        {user.name}
+                      </Link>
+                    </div>
 
                     <div className="text-green-400 font-bold mt-1 text-base">
                       {userTotalScore} pts
