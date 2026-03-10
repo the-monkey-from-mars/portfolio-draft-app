@@ -3,6 +3,7 @@ import Link from "next/link";
 import { SPORT_CONFIG } from "../lib/sportConfig";
 import RulesModal from "../components/RulesModal";
 import WaiverRulesModal from "../components/WaiverRulesModal";
+import DraftResultsModal from "../components/DraftResultsModal";
 import YearDropdown from "../components/YearDropdown";
 
 export const revalidate = 0;
@@ -54,10 +55,14 @@ export default async function Home({ searchParams }) {
           <p className="text-gray-400 mt-2 flex items-center">
             Live Leaderboard
             <span className="mx-3 text-gray-600">|</span>
-            <span className="text-yellow-500 font-semibold tracking-wide">
-              {draftInfo.label}:{" "}
-              <span className="text-white">{draftInfo.date}</span>
-            </span>
+            {selectedYear === "2026-2027" ? (
+              <DraftResultsModal />
+            ) : (
+              <span className="text-yellow-500 font-semibold tracking-wide">
+                {draftInfo.label}:{" "}
+                <span className="text-white">{draftInfo.date}</span>
+              </span>
+            )}
           </p>
         </div>
 
