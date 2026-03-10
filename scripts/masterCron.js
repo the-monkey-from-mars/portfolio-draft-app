@@ -1,13 +1,9 @@
-import * as dotenv from "dotenv";
-dotenv.config({ path: ".env.local" });
-
 import { createClient } from "@supabase/supabase-js";
 import { calculateStandardTeam } from "./sports/standardTeam.js";
 import { calculateSoccer } from "./sports/soccer.js";
 import { calculateF1 } from "./sports/f1.js";
 import { calculatePGA } from "./sports/pga.js";
 import { calculateMMA } from "./sports/mma.js";
-import { calculateLOVB } from "./sports/lovb.js";
 import { calculateWTA } from "./sports/wta.js";
 import { calculateATP } from "./sports/atp.js";
 import { calculateLPGA } from "./sports/lpga.js";
@@ -27,6 +23,7 @@ const API_ENDPOINTS = {
   9: "https://site.api.espn.com/apis/v2/sports/football/college-football/standings?group=80",
   10: "https://site.api.espn.com/apis/v2/sports/basketball/mens-college-basketball/standings?group=50",
   11: "https://site.api.espn.com/apis/v2/sports/basketball/womens-college-basketball/standings?group=50",
+  7: "https://site.api.espn.com/apis/v2/sports/volleyball/womens-college-volleyball/standings?group=50",
   6: "https://site.api.espn.com/apis/v2/sports/soccer/usa.1/standings",
   8: "https://site.api.espn.com/apis/v2/sports/soccer/eng.1/standings",
 };
@@ -98,7 +95,7 @@ async function runUpdate() {
       // --- THE ROUTING ENGINE ---
 
       // If the sport uses a standard ESPN Win % API (NBA, NFL, MLB, NHL, College):
-      if ([1, 2, 3, 4, 5, 9, 10, 11].includes(sportId)) {
+      if ([1, 2, 3, 4, 5, 7, 9, 10, 11].includes(sportId)) {
         console.log(`⏱️ Calculating ${teamName}...`);
         const apiUrl = API_ENDPOINTS[sportId];
         scores = await calculateStandardTeam(apiUniqueId, apiUrl);
@@ -146,12 +143,6 @@ async function runUpdate() {
       else if (sportId === 17) {
         console.log(`🥊 Calculating Combat Math for ${teamName}...`);
         scores = await calculateMMA(teamName);
-      }
-
-      // If the sport is LOVB (7):
-      else if (sportId === 7) {
-        console.log(`🏐 Calculating LOVB Math for ${teamName}...`);
-        scores = await calculateLOVB(teamName);
       }
 
       const totalScore = scores.regularSeasonScore + scores.postseasonScore;
