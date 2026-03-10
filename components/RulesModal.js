@@ -246,7 +246,10 @@ export default function RulesModal() {
                   non-Crown-Jewel WDC Pts) * 400.
                 </p>
                 <p>
-                  <strong>Crown Jewel Races (x4) (600 pts max):</strong>
+                  <strong>
+                    Crown Jewel: British, Belgian, Monaco, Italian GPs (x4) (600
+                    pts max):
+                  </strong>
                 </p>
                 <ul className="list-disc pl-5 mt-1">
                   <li>Points Finish: +15 pts</li>
