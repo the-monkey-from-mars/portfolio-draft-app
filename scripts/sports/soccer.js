@@ -7,10 +7,13 @@ export async function calculateSoccer(apiUniqueId, sportUrl, maxTablePoints) {
     let teamStats = null;
 
     if (data.children && data.children.length > 0) {
-      const standingsArray = data.children[0].standings.entries;
-      const found = standingsArray.find((t) => t.team.id === apiUniqueId);
-      if (found) {
-        teamStats = found;
+      for (const conference of data.children) {
+        const standingsArray = conference.standings.entries;
+        const found = standingsArray.find((t) => t.team.id === apiUniqueId);
+        if (found) {
+          teamStats = found;
+          break;
+        }
       }
     }
 

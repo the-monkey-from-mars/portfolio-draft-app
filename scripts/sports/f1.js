@@ -14,7 +14,9 @@ export async function calculateF1(driverName) {
     }
 
     // 1. Find the World Championship Leader's Points (This is always index 0)
-    const leaderStat = standings[0].stats.find((s) => s.name === "points");
+    const leaderStat = standings[0].stats.find(
+      (s) => s.name === "championshipPts",
+    );
     const leaderPoints = leaderStat ? leaderStat.value : 0;
 
     // If the season hasn't started and the leader has 0 points, avoid dividing by zero!
@@ -45,7 +47,9 @@ export async function calculateF1(driverName) {
     }
 
     // 3. Extract your driver's points
-    const driverStat = driverData.stats.find((s) => s.name === "points");
+    const driverStat = driverData.stats.find(
+      (s) => s.name === "championshipPts",
+    );
     const driverPoints = driverStat ? driverStat.value : 0;
 
     // 4. Apply the Portfolio Math: (Your Driver Pts / Leader Pts) * 400
