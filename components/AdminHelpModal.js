@@ -129,7 +129,8 @@ export default function AdminHelpModal() {
                     <strong className="text-white">Set New Deadlines:</strong>{" "}
                     Open the Supabase SQL Editor and run the annual UPDATE
                     script to set the exact <code>waiver_deadline</code>{" "}
-                    timestamps for all 17 sports.
+                    timestamps for all 19 sports (including NWSL and Summer Intl
+                    Soccer).
                   </li>
                   <li>
                     <strong className="text-white">
@@ -141,6 +142,47 @@ export default function AdminHelpModal() {
                     are past.
                   </li>
                 </ol>
+              </div>
+
+              <div className="p-3 bg-gray-900 rounded border border-green-600/50">
+                <h3 className="font-bold text-green-400 mb-2 border-b border-gray-700 pb-1">
+                  7. Summer International Soccer — Annual Rotation
+                </h3>
+                <p className="mb-3">
+                  This sport rotates its tournament every year. Before seeding,
+                  confirm which tournament applies:
+                </p>
+                <ul className="list-disc pl-5 text-gray-400 space-y-1">
+                  <li>
+                    <strong className="text-white">2026:</strong> FIFA
+                    Men&apos;s World Cup (48 teams, <code>fifa.world</code>)
+                  </li>
+                  <li>
+                    <strong className="text-white">2027:</strong> FIFA
+                    Women&apos;s World Cup (32 teams, <code>fifa.wwc</code>)
+                  </li>
+                  <li>
+                    <strong className="text-white">2028:</strong> UEFA Euro +
+                    Copa América (40 teams combined)
+                  </li>
+                  <li>
+                    <strong className="text-white">2029:</strong> CONCACAF Gold
+                    Cup + Women&apos;s Euro (32 teams combined)
+                  </li>
+                  <li>
+                    <strong className="text-white">2030:</strong> FIFA
+                    Men&apos;s World Cup again (cycle repeats)
+                  </li>
+                </ul>
+                <p className="mt-3 text-xs text-gray-500">
+                  The team lists in the Admin Seeding panel are pre-loaded per
+                  year. Use the year dropdown to pick the correct tournament,
+                  then click Seed. The <code>SUMMER_INTL_SOCCER_CONFIG</code> in{" "}
+                  <code>lib/sportConfig.js</code> controls which ESPN slug the
+                  cron job uses, so update that config if you adjust
+                  tournaments. National team rosters may also need updating as
+                  qualifiers finalize — just re-seed to append new teams.
+                </p>
               </div>
             </div>
           </div>

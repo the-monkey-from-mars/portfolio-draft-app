@@ -3,13 +3,202 @@
 import { useState, useEffect } from "react";
 import { supabase } from "../../lib/supabase";
 import Link from "next/link";
-import { SPORT_CONFIG } from "../../lib/sportConfig";
+import { SPORT_CONFIG, SUMMER_INTL_SOCCER_CONFIG } from "../../lib/sportConfig";
 import AdminHelpModal from "../../components/AdminHelpModal";
 import AdminScoreOverride from "../../components/AdminScoreOverride";
 import AdminRosterManager from "../../components/AdminRosterManager";
 
+// ═══════════════════════════════════════════════════════════════
+// 2026 FIFA Men's World Cup — 48 Teams
+// ═══════════════════════════════════════════════════════════════
+const WORLD_CUP_2026_TEAMS = [
+  "Argentina",
+  "Brazil",
+  "France",
+  "England",
+  "Spain",
+  "Germany",
+  "Netherlands",
+  "Portugal",
+  "Belgium",
+  "Italy",
+  "Croatia",
+  "Uruguay",
+  "Colombia",
+  "Mexico",
+  "United States",
+  "Japan",
+  "South Korea",
+  "Australia",
+  "Iran",
+  "Saudi Arabia",
+  "Qatar",
+  "Canada",
+  "Morocco",
+  "Senegal",
+  "Cameroon",
+  "Ghana",
+  "Nigeria",
+  "Tunisia",
+  "Egypt",
+  "Algeria",
+  "Ecuador",
+  "Chile",
+  "Peru",
+  "Paraguay",
+  "Venezuela",
+  "Costa Rica",
+  "Panama",
+  "Honduras",
+  "Jamaica",
+  "Serbia",
+  "Switzerland",
+  "Denmark",
+  "Poland",
+  "Austria",
+  "Ukraine",
+  "Wales",
+  "Scotland",
+  "Norway",
+];
+
+// ═══════════════════════════════════════════════════════════════
+// 2027 FIFA Women's World Cup — 32 Teams
+// ═══════════════════════════════════════════════════════════════
+const WOMENS_WORLD_CUP_2027_TEAMS = [
+  "United States W",
+  "Spain W",
+  "England W",
+  "Germany W",
+  "France W",
+  "Sweden W",
+  "Brazil W",
+  "Japan W",
+  "Canada W",
+  "Netherlands W",
+  "Australia W",
+  "Colombia W",
+  "South Korea W",
+  "Norway W",
+  "Denmark W",
+  "China W",
+  "Italy W",
+  "Argentina W",
+  "Switzerland W",
+  "Ireland W",
+  "Nigeria W",
+  "South Africa W",
+  "Morocco W",
+  "Zambia W",
+  "Vietnam W",
+  "Philippines W",
+  "New Zealand W",
+  "Portugal W",
+  "Costa Rica W",
+  "Panama W",
+  "Haiti W",
+  "Jamaica W",
+];
+
+// ═══════════════════════════════════════════════════════════════
+// 2028 UEFA Euro (24) + Copa América (16) = 40 Teams
+// ═══════════════════════════════════════════════════════════════
+const EURO_COPA_2028_TEAMS = [
+  // Euro 2028 (estimated qualifiers — update closer to tournament)
+  "England",
+  "France",
+  "Spain",
+  "Germany",
+  "Italy",
+  "Netherlands",
+  "Portugal",
+  "Belgium",
+  "Croatia",
+  "Switzerland",
+  "Austria",
+  "Denmark",
+  "Turkey",
+  "Scotland",
+  "Hungary",
+  "Serbia",
+  "Czech Republic",
+  "Poland",
+  "Romania",
+  "Slovakia",
+  "Slovenia",
+  "Ukraine",
+  "Georgia",
+  "Albania",
+  // Copa América 2028
+  "Argentina",
+  "Brazil",
+  "Uruguay",
+  "Colombia",
+  "Ecuador",
+  "Chile",
+  "Paraguay",
+  "Peru",
+  "Venezuela",
+  "Bolivia",
+  "Mexico",
+  "United States",
+  "Canada",
+  "Costa Rica",
+  "Panama",
+  "Jamaica",
+];
+
+// ═══════════════════════════════════════════════════════════════
+// 2029 CONCACAF Gold Cup + Women's Euro
+// ═══════════════════════════════════════════════════════════════
+const GOLD_CUP_WEURO_2029_TEAMS = [
+  // CONCACAF Gold Cup
+  "United States",
+  "Mexico",
+  "Canada",
+  "Costa Rica",
+  "Panama",
+  "Honduras",
+  "Jamaica",
+  "El Salvador",
+  "Haiti",
+  "Trinidad and Tobago",
+  "Guatemala",
+  "Curaçao",
+  "Martinique",
+  "Bermuda",
+  "Guyana",
+  "Cuba",
+  // UEFA Women's Euro
+  "England W",
+  "Spain W",
+  "Germany W",
+  "France W",
+  "Sweden W",
+  "Netherlands W",
+  "Norway W",
+  "Denmark W",
+  "Italy W",
+  "Switzerland W",
+  "Austria W",
+  "Belgium W",
+  "Iceland W",
+  "Finland W",
+  "Portugal W",
+  "Poland W",
+];
+
+// Maps portfolio year to the correct team list
+const SUMMER_INTL_TEAM_LISTS = {
+  "2026-2027": WORLD_CUP_2026_TEAMS,
+  "2027-2028": WOMENS_WORLD_CUP_2027_TEAMS,
+  "2028-2029": EURO_COPA_2028_TEAMS,
+  "2029-2030": GOLD_CUP_WEURO_2029_TEAMS,
+  "2030-2031": WORLD_CUP_2026_TEAMS, // Repeat cycle — update closer to event
+};
+
 export default function AdminDashboard() {
-  // --- NEW AUTHENTICATION STATE ---
+  // --- AUTHENTICATION STATE ---
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [passwordInput, setPasswordInput] = useState("");
   const [showReminder, setShowReminder] = useState(false);
@@ -26,9 +215,11 @@ export default function AdminDashboard() {
   const [selectedEntity, setSelectedEntity] = useState("");
   const [statusMessage, setStatusMessage] = useState("");
 
+  // Summer Intl Soccer year selector
+  const [selectedIntlYear, setSelectedIntlYear] = useState("2026-2027");
+
   // 1. Fetch Users and Sports when the page loads
   useEffect(() => {
-    // We only need to fetch data if they successfully log in!
     if (!isAuthenticated) return;
 
     async function loadInitialData() {
@@ -38,7 +229,6 @@ export default function AdminDashboard() {
         .eq("is_active", true);
       const { data: sportData } = await supabase.from("sports").select("*");
 
-      // Sort sports chronologically
       const sortedSports = (sportData || []).sort((a, b) => {
         const orderA = SPORT_CONFIG[a.id]?.order || 99;
         const orderB = SPORT_CONFIG[b.id]?.order || 99;
@@ -71,7 +261,7 @@ export default function AdminDashboard() {
 
   // --- LOGIN HANDLER ---
   const handleLogin = (e) => {
-    e.preventDefault(); // Prevent page refresh on submit
+    e.preventDefault();
     if (passwordInput === "randymoss81") {
       setIsAuthenticated(true);
       setLoginError(false);
@@ -90,13 +280,12 @@ export default function AdminDashboard() {
 
     setStatusMessage("Saving...");
 
-    // STEP A: Find the first EMPTY slot for this user and sport
     const { data: availableSlots, error: fetchError } = await supabase
       .from("roster_picks")
       .select("id")
       .eq("user_id", selectedUser)
       .eq("sport_id", selectedSport)
-      .is("entity_id", null) // Only look for slots that haven't been drafted yet
+      .is("entity_id", null)
       .order("id", { ascending: true })
       .limit(1);
 
@@ -106,7 +295,6 @@ export default function AdminDashboard() {
       return;
     }
 
-    // If both slots are already filled, stop them from drafting a third!
     if (availableSlots.length === 0) {
       setStatusMessage(
         "⚠️ This user already has all slots filled for this sport!",
@@ -116,7 +304,6 @@ export default function AdminDashboard() {
 
     const targetSlotId = availableSlots[0].id;
 
-    // STEP B: Update ONLY that specific slot
     const { error: updateError } = await supabase
       .from("roster_picks")
       .update({ entity_id: selectedEntity })
@@ -127,7 +314,7 @@ export default function AdminDashboard() {
       setStatusMessage("❌ Error saving draft pick!");
     } else {
       setStatusMessage("✅ Draft pick successfully locked in!");
-      setSelectedEntity(""); // Reset the team dropdown for the next pick
+      setSelectedEntity("");
     }
   };
 
@@ -143,7 +330,6 @@ export default function AdminDashboard() {
       console.error(error);
       setStatusMessage("❌ Error updating sport status.");
     } else {
-      // Update the UI instantly without reloading the page
       setSports(
         sports.map((s) =>
           s.id === sportId ? { ...s, is_scraping_active: newStatus } : s,
@@ -187,7 +373,6 @@ export default function AdminDashboard() {
         };
       });
 
-      // 1. Fetch existing teams to prevent duplicates
       const { data: existing } = await supabase
         .from("entities")
         .select("api_unique_id")
@@ -205,7 +390,6 @@ export default function AdminDashboard() {
         return;
       }
 
-      // 2. Insert ONLY the new teams
       const { error } = await supabase.from("entities").insert(newEntities);
 
       if (error) {
@@ -227,12 +411,11 @@ export default function AdminDashboard() {
     setStatusMessage(`Checking manual data...`);
 
     const entitiesToInsert = teamsArray.map((name) => {
-      // Create a clean "slug" from the name (e.g., "Joshua Van" -> "joshua-van")
       const nameSlug = name.toLowerCase().replace(/[^a-z0-9]/g, "-");
 
       return {
         sport_id: sportId,
-        api_unique_id: `manual_${sportId}_${nameSlug}`, // ID is now name-based!
+        api_unique_id: `manual_${sportId}_${nameSlug}`,
         display_name: name,
       };
     });
@@ -328,7 +511,7 @@ export default function AdminDashboard() {
     }
   };
 
-  // --- SECURITY GATE: RENDER LOGIN SCREEN IF NOT AUTHENTICATED ---
+  // --- SECURITY GATE ---
   if (!isAuthenticated) {
     return (
       <main className="p-10 text-white max-w-md mx-auto mt-20 bg-gray-900 border border-gray-700 rounded-lg shadow-2xl">
@@ -383,7 +566,10 @@ export default function AdminDashboard() {
     );
   }
 
-  // --- THE ACTUAL ADMIN DASHBOARD (ONLY RENDERED IF AUTHENTICATED) ---
+  // --- THE ACTUAL ADMIN DASHBOARD ---
+  const currentIntlConfig = SUMMER_INTL_SOCCER_CONFIG[selectedIntlYear];
+  const currentIntlTeams = SUMMER_INTL_TEAM_LISTS[selectedIntlYear] || [];
+
   return (
     <main className="p-10 text-white max-w-2xl mx-auto">
       <Link
@@ -509,7 +695,7 @@ export default function AdminDashboard() {
         </div>
       </div>
 
-      {/* --- TEMPORARY DATA SEEDING DASHBOARD --- */}
+      {/* --- DATA SEEDING DASHBOARD --- */}
       <div className="mt-12 bg-gray-900 border border-gray-700 p-6 rounded shadow-lg">
         <h2 className="text-xl font-bold mb-4 text-red-400">
           Database Setup (Admin Only)
@@ -614,6 +800,7 @@ export default function AdminDashboard() {
           >
             Sync Women&apos;s CBB (D-1)
           </button>
+
           <button
             onClick={() =>
               seedESPNLeague(
@@ -624,6 +811,18 @@ export default function AdminDashboard() {
             className="bg-gray-700 hover:bg-gray-600 p-2 rounded text-sm font-bold transition"
           >
             Sync MLS Teams
+          </button>
+
+          <button
+            onClick={() =>
+              seedESPNLeague(
+                18,
+                "https://site.api.espn.com/apis/site/v2/sports/soccer/usa.nwsl/teams?limit=50",
+              )
+            }
+            className="bg-gray-700 hover:bg-gray-600 p-2 rounded text-sm font-bold transition"
+          >
+            Sync NWSL Teams
           </button>
 
           <button
@@ -1109,6 +1308,60 @@ export default function AdminDashboard() {
             Sync UFC Fighters (Top 75)
           </button>
         </div>
+      </div>
+
+      {/* --- SUMMER INTERNATIONAL SOCCER SEEDING --- */}
+      <div className="mt-12 bg-gray-900 border-2 border-green-700/50 p-6 rounded shadow-lg">
+        <h2 className="text-xl font-bold mb-2 text-green-400">
+          Summer International Soccer
+        </h2>
+        <p className="text-sm text-gray-400 mb-4">
+          Seed national teams for the year&apos;s summer tournament. The
+          tournament rotates each year — select the correct portfolio year
+          before seeding.
+        </p>
+
+        <div className="flex items-center gap-4 mb-4">
+          <select
+            value={selectedIntlYear}
+            onChange={(e) => setSelectedIntlYear(e.target.value)}
+            className="bg-gray-800 text-white border border-gray-600 rounded p-2 text-sm focus:outline-none focus:border-green-500"
+          >
+            {Object.entries(SUMMER_INTL_SOCCER_CONFIG).map(([year, config]) => (
+              <option key={year} value={year}>
+                {year}: {config.label}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {currentIntlConfig && (
+          <div className="bg-gray-800 p-4 rounded border border-gray-700 mb-4">
+            <p className="text-sm text-gray-300">
+              <span className="text-green-400 font-bold">
+                {currentIntlConfig.label}
+              </span>
+              {" — "}
+              {currentIntlTeams.length} teams,{" "}
+              {currentIntlConfig.knockoutRounds}-round knockout
+            </p>
+            <p className="text-xs text-gray-500 mt-1">
+              ESPN slug(s):{" "}
+              {Array.isArray(currentIntlConfig.espnSlug)
+                ? currentIntlConfig.espnSlug.join(", ")
+                : currentIntlConfig.espnSlug}
+            </p>
+          </div>
+        )}
+
+        <button
+          onClick={() => seedManualLeague(19, currentIntlTeams)}
+          disabled={currentIntlTeams.length === 0}
+          className="w-full bg-green-700 hover:bg-green-600 disabled:bg-gray-700 disabled:text-gray-500 text-white font-bold py-3 rounded transition"
+        >
+          Seed {currentIntlTeams.length} Teams for{" "}
+          {currentIntlConfig?.label || "Unknown"}
+        </button>
       </div>
     </main>
   );

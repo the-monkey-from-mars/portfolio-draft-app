@@ -7,6 +7,9 @@ import { calculateMMA } from "./sports/mma.js";
 import { calculateWTA } from "./sports/wta.js";
 import { calculateATP } from "./sports/atp.js";
 import { calculateLPGA } from "./sports/lpga.js";
+import { calculateNWSL } from "./sports/nwsl.js";
+import { calculateSummerIntl } from "./sports/summerintl.js";
+import { SUMMER_INTL_SOCCER_CONFIG } from "../lib/sportConfig.js";
 
 // Initialize Supabase
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -26,7 +29,24 @@ const API_ENDPOINTS = {
   7: "https://site.api.espn.com/apis/v2/sports/volleyball/womens-college-volleyball/standings?group=50",
   6: "https://site.api.espn.com/apis/v2/sports/soccer/usa.1/standings",
   8: "https://site.api.espn.com/apis/v2/sports/soccer/eng.1/standings",
+  18: "https://site.api.espn.com/apis/v2/sports/soccer/usa.nwsl/standings",
 };
+
+/**
+ * Determine which portfolio year is "current" based on today's date.
+ * The portfolio year runs from roughly Super Bowl (mid-Feb) to Super Bowl.
+ * E.g., "2026-2027" covers Feb 2026 through Jan 2027.
+ */
+function getCurrentPortfolioYear() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth() + 1; // 1-indexed
+  // If before February, we're still in last year's portfolio
+  if (month < 2) {
+    return `${year - 1}-${year}`;
+  }
+  return `${year}-${year + 1}`;
+}
 
 async function runUpdate() {
   console.log("🚀 Starting Daily Score Update...");
@@ -71,20 +91,22 @@ async function runUpdate() {
       );
     }
 
+    // Determine the current portfolio year for summer intl soccer config lookup
+    const currentPortfolioYear = getCurrentPortfolioYear();
+    const summerConfig = SUMMER_INTL_SOCCER_CONFIG[currentPortfolioYear];
+
     for (const pick of picks) {
       const sportId = pick.sport_id;
       const teamName = pick.entities.display_name;
       const apiUniqueId = pick.entities.api_unique_id;
 
       // --- THE OVERRIDE CHECK ---
-      // If the admin has manually set scores for this pick, don't touch it!
       if (pick.is_manual_override) {
         console.log(`🔧 Skipping ${teamName} - Manual override is active.`);
         continue;
       }
 
       // --- THE LOCK CHECK ---
-      // If the admin dashboard toggle for this sport is OFF, skip the loop entirely!
       if (!sportActiveMap[sportId]) {
         console.log(`🔒 Skipping ${teamName} - Sport is currently locked.`);
         continue;
@@ -94,14 +116,14 @@ async function runUpdate() {
 
       // --- THE ROUTING ENGINE ---
 
-      // If the sport uses a standard ESPN Win % API (NBA, NFL, MLB, NHL, College):
+      // Standard ESPN Win % sports (NBA, NFL, MLB, NHL, College, WVB):
       if ([1, 2, 3, 4, 5, 7, 9, 10, 11].includes(sportId)) {
         console.log(`⏱️ Calculating ${teamName}...`);
         const apiUrl = API_ENDPOINTS[sportId];
         scores = await calculateStandardTeam(apiUniqueId, apiUrl);
       }
 
-      // If the sport is Soccer (6 = MLS, 8 = Premier League):
+      // Soccer — MLS (6) and Premier League (8):
       else if ([6, 8].includes(sportId)) {
         console.log(`⚽ Calculating Table Math for ${teamName}...`);
         const apiUrl = API_ENDPOINTS[sportId];
@@ -109,37 +131,61 @@ async function runUpdate() {
         scores = await calculateSoccer(apiUniqueId, apiUrl, maxTablePoints);
       }
 
-      // If the sport is Formula 1 (16):
+      // NWSL (18):
+      else if (sportId === 18) {
+        console.log(`⚽ Calculating NWSL Table Math for ${teamName}...`);
+        const apiUrl = API_ENDPOINTS[18];
+        scores = await calculateNWSL(apiUniqueId, apiUrl);
+      }
+
+      // Summer International Soccer (19):
+      else if (sportId === 19) {
+        if (summerConfig) {
+          console.log(
+            `🌍 Calculating ${summerConfig.label} for ${teamName}...`,
+          );
+          scores = await calculateSummerIntl(
+            apiUniqueId,
+            summerConfig.espnSlug,
+          );
+        } else {
+          console.log(
+            `🌍 No summer intl config for ${currentPortfolioYear}, skipping ${teamName}.`,
+          );
+        }
+      }
+
+      // Formula 1 (16):
       else if (sportId === 16) {
         console.log(`🏎️ Calculating F1 Relative Math for ${teamName}...`);
         scores = await calculateF1(teamName);
       }
 
-      // If the sport is PGA Golf (14):
+      // PGA Golf (14):
       else if (sportId === 14) {
         console.log(`⛳ Calculating PGA Math for ${teamName}...`);
         scores = await calculatePGA(teamName);
       }
 
-      // If the sport is LPGA Golf (15):
+      // LPGA Golf (15):
       else if (sportId === 15) {
         console.log(`⛳ Calculating LPGA Math for ${teamName}...`);
         scores = await calculateLPGA(teamName);
       }
 
-      // If the sport is WTA Tennis (13):
+      // WTA Tennis (13):
       else if (sportId === 13) {
         console.log(`🎾 Calculating WTA Math for ${teamName}...`);
         scores = await calculateWTA(teamName);
       }
 
-      // If the sport is ATP Tennis (12):
+      // ATP Tennis (12):
       else if (sportId === 12) {
         console.log(`🎾 Calculating ATP Math for ${teamName}...`);
         scores = await calculateATP(teamName);
       }
 
-      // If the sport is MMA (17):
+      // MMA (17):
       else if (sportId === 17) {
         console.log(`🥊 Calculating Combat Math for ${teamName}...`);
         scores = await calculateMMA(teamName);

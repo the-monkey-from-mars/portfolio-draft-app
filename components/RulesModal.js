@@ -184,6 +184,79 @@ export default function RulesModal() {
                 </ul>
               </div>
 
+              {/* NWSL */}
+              <div>
+                <h3 className="text-lg font-bold text-blue-400 border-b border-gray-700 pb-1 mb-2">
+                  NWSL
+                </h3>
+                <p>
+                  <strong>Regular Season (400 pts max):</strong> The 2026 NWSL
+                  features a 30-game season (90 max table points). Formula:
+                  (Team&apos;s Table Points / 90) * 400.
+                </p>
+                <p>
+                  <strong>Playoffs (600 pts max):</strong> 8-team
+                  single-elimination bracket.
+                </p>
+                <ul className="list-disc pl-5 mt-1">
+                  <li>Win Quarterfinal: +100 pts</li>
+                  <li>Win Semifinal: +200 pts</li>
+                  <li>Win NWSL Championship: +300 pts</li>
+                  <li className="text-gray-400 italic">
+                    Total for the Champion: 600 pts.
+                  </li>
+                </ul>
+              </div>
+
+              {/* Summer International Soccer */}
+              <div>
+                <h3 className="text-lg font-bold text-blue-400 border-b border-gray-700 pb-1 mb-2">
+                  Summer International Soccer (Rotating)
+                </h3>
+                <p className="mb-2">
+                  The tournament changes every year: 2026 Men&apos;s World Cup,
+                  2027 Women&apos;s World Cup, 2028 Euros + Copa América, 2029
+                  Gold Cup + Women&apos;s Euro, and so on.
+                </p>
+                <p>
+                  <strong>Group Stage (400 pts max):</strong>
+                </p>
+                <ul className="list-disc pl-5 mt-1 mb-2">
+                  <li>Group Win: +100 pts</li>
+                  <li>Group Draw: +35 pts</li>
+                  <li>Win the Group Bonus: +100 pts</li>
+                  <li className="text-gray-400 italic">
+                    Perfect 3-0-0 Group Winner: 300 + 100 = 400 pts.
+                  </li>
+                </ul>
+                <p>
+                  <strong>
+                    Knockout Stage (600 pts max — 2026 World Cup, 48 teams):
+                  </strong>
+                </p>
+                <ul className="list-disc pl-5 mt-1 mb-2">
+                  <li>Round of 32 Win: +50 pts</li>
+                  <li>Round of 16 Win: +75 pts</li>
+                  <li>Quarterfinal Win: +100 pts</li>
+                  <li>Semifinal Win: +125 pts</li>
+                  <li>Win the Final: +250 pts</li>
+                  <li className="text-gray-400 italic">
+                    3rd Place Match Win: +75 pts (consolation)
+                  </li>
+                </ul>
+                <p>
+                  <strong>
+                    Knockout Stage (600 pts max — 32-team tournaments):
+                  </strong>
+                </p>
+                <ul className="list-disc pl-5 mt-1">
+                  <li>Round of 16 Win: +75 pts</li>
+                  <li>Quarterfinal Win: +125 pts</li>
+                  <li>Semifinal Win: +150 pts</li>
+                  <li>Win the Final: +250 pts</li>
+                </ul>
+              </div>
+
               {/* Premier League (Men's) */}
               <div>
                 <h3 className="text-lg font-bold text-blue-400 border-b border-gray-700 pb-1 mb-2">
