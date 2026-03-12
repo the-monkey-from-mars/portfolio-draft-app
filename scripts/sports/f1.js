@@ -7,60 +7,101 @@ export async function calculateF1(driverName) {
 
     const data = await res.json();
 
-    // Safety check for ESPN's standings array
     const standings = data.children?.[0]?.standings?.entries;
     if (!standings || standings.length === 0) {
       throw new Error("Could not parse F1 standings array.");
     }
 
-    // 1. Find the World Championship Leader's Points (This is always index 0)
     const leaderStat = standings[0].stats.find(
       (s) => s.name === "championshipPts",
     );
     const leaderPoints = leaderStat ? leaderStat.value : 0;
+    const leaderName = standings[0].athlete?.displayName || "Unknown";
 
-    // If the season hasn't started and the leader has 0 points, avoid dividing by zero!
     if (leaderPoints === 0) {
-      return { regularSeasonScore: 0, postseasonScore: 0 };
+      return { regularSeasonScore: 0, postseasonScore: 0, breakdown: null };
     }
 
-    // 2. Find your drafted driver with a Smart Fallback Matcher
     const driverData = standings.find((d) => {
       if (!d.athlete) return false;
-
       const apiName = d.athlete.displayName.toLowerCase();
       const draftedName = driverName.toLowerCase();
-
-      // Attempt 1: Exact Match (e.g., "Max Verstappen" === "Max Verstappen")
       if (apiName === draftedName) return true;
-
-      // Attempt 2: Last Name Fallback Match (e.g., "Kimi Antonelli" includes "Antonelli")
       const draftedLastName = draftedName.split(" ").pop();
       if (apiName.includes(draftedLastName)) return true;
-
       return false;
     });
 
     if (!driverData) {
       console.warn(`Could not find F1 driver in standings: ${driverName}`);
-      return { regularSeasonScore: 0, postseasonScore: 0 };
+      return { regularSeasonScore: 0, postseasonScore: 0, breakdown: null };
     }
 
-    // 3. Extract your driver's points
     const driverStat = driverData.stats.find(
       (s) => s.name === "championshipPts",
     );
     const driverPoints = driverStat ? driverStat.value : 0;
 
-    // 4. Apply the Portfolio Math: (Your Driver Pts / Leader Pts) * 400
-    const regularSeasonScore = Math.round((driverPoints / leaderPoints) * 400);
+    const rankStat = driverData.stats.find(
+      (s) => s.name === "rank" || s.name === "championshipRank",
+    );
+    const driverRank = rankStat ? rankStat.value : null;
 
-    // Placeholder for the 4 Crown Jewel Races (+600 max)
+    const regularSeasonScore = Math.round((driverPoints / leaderPoints) * 400);
     let postseasonScore = 0;
 
-    return { regularSeasonScore, postseasonScore };
+    const breakdown = {
+      sportType: "f1_relative",
+      regularSeason: {
+        label: "WDC Points (Relative to Leader)",
+        formula: "(driverPts / leaderPts) × 400",
+        inputs: {
+          driverPoints: driverPoints,
+          leaderPoints: leaderPoints,
+          leaderName: leaderName,
+          driverRank: driverRank,
+        },
+        computed: regularSeasonScore,
+        max: 400,
+      },
+      postseason: {
+        label: "Crown Jewel Races (British, Belgian, Monaco, Italian GPs)",
+        formula:
+          "Points Finish (+15), Top 5 (+30), Podium (+45), Win (+60) — cumulative per race",
+        milestones: [
+          {
+            label: "Monaco GP",
+            pts: 0,
+            achieved: false,
+            detail: "Not yet scored",
+          },
+          {
+            label: "British GP",
+            pts: 0,
+            achieved: false,
+            detail: "Not yet scored",
+          },
+          {
+            label: "Belgian GP",
+            pts: 0,
+            achieved: false,
+            detail: "Not yet scored",
+          },
+          {
+            label: "Italian GP",
+            pts: 0,
+            achieved: false,
+            detail: "Not yet scored",
+          },
+        ],
+        computed: postseasonScore,
+        max: 600,
+      },
+    };
+
+    return { regularSeasonScore, postseasonScore, breakdown };
   } catch (error) {
     console.error("F1 Script Error:", error);
-    return { regularSeasonScore: 0, postseasonScore: 0 };
+    return { regularSeasonScore: 0, postseasonScore: 0, breakdown: null };
   }
 }

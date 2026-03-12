@@ -1,68 +1,114 @@
 export async function calculateMMA(fighterName) {
   try {
-    // In a fully automated world, we would fetch a fight database here.
-    // Because specific metadata (Title Fight, Top 5 Opponent) is rarely free via API,
-    // this data would ideally be fetched from a custom Supabase table you update after PPVs.
-
-    // For demonstration, let's simulate fetching a fighter's record for the current year:
     const currentYearFights = await fetchMMAFightLog(fighterName);
 
     let regularSeasonScore = 0;
     let postseasonScore = 0;
 
+    const fightResults = [];
+
     for (const fight of currentYearFights) {
+      const fightEntry = {
+        result: fight.result,
+        isMainEvent: fight.isMainEvent || false,
+        isOpponentTop5: fight.isOpponentTop5 || false,
+        isTitleFight: fight.isTitleFight || false,
+        opponent: fight.opponent || "Unknown",
+        regPoints: 0,
+        bonusPoints: 0,
+      };
+
       if (fight.result === "Win") {
-        // 1. Regular Season Points (Max 400)
-        // +200 per win. Capped at 400.
         if (regularSeasonScore < 400) {
-          regularSeasonScore += 200;
+          const added = Math.min(200, 400 - regularSeasonScore);
+          regularSeasonScore += added;
+          fightEntry.regPoints = added;
         }
 
-        // 2. High-Leverage Bonus Points (Max 600)
-        // Note: These bonuses stack based on your ruleset, but cap at 600.
         let bonusPoints = 0;
-
         if (fight.isMainEvent) bonusPoints += 100;
         if (fight.isOpponentTop5) bonusPoints += 150;
         if (fight.isTitleFight) bonusPoints += 350;
 
+        fightEntry.bonusPoints = bonusPoints;
         postseasonScore += bonusPoints;
       }
+
+      fightResults.push(fightEntry);
     }
 
-    // Ensure the high-leverage points never exceed the 600 point maximum
     postseasonScore = Math.min(postseasonScore, 600);
 
-    return { regularSeasonScore, postseasonScore };
+    const breakdown = {
+      sportType: "mma_fight_log",
+      regularSeason: {
+        label: "Fight Wins (200 pts per Win, Max 400)",
+        formula: "200 × wins (capped at 400)",
+        inputs: {
+          fights: fightResults,
+          totalWins: fightResults.filter((f) => f.result === "Win").length,
+          totalFights: fightResults.length,
+        },
+        computed: regularSeasonScore,
+        max: 400,
+      },
+      postseason: {
+        label: "High-Leverage Events",
+        formula: "Main Event (+100), Top-5 Opponent (+150), Title Fight (+350)",
+        milestones: [
+          {
+            label: "Main Event Bout",
+            pts: 100,
+            achieved: fightResults.some(
+              (f) => f.result === "Win" && f.isMainEvent,
+            ),
+          },
+          {
+            label: "Win vs. Top-5 Opponent",
+            pts: 150,
+            achieved: fightResults.some(
+              (f) => f.result === "Win" && f.isOpponentTop5,
+            ),
+          },
+          {
+            label: "Win Title Fight",
+            pts: 350,
+            achieved: fightResults.some(
+              (f) => f.result === "Win" && f.isTitleFight,
+            ),
+          },
+        ],
+        computed: postseasonScore,
+        max: 600,
+      },
+    };
+
+    return { regularSeasonScore, postseasonScore, breakdown };
   } catch (error) {
     console.error(`MMA Script Error (${fighterName}):`, error.message);
-    return { regularSeasonScore: 0, postseasonScore: 0 };
+    return { regularSeasonScore: 0, postseasonScore: 0, breakdown: null };
   }
 }
 
-// --- HELPER FUNCTION (Mock Data Fetcher) ---
-// To make this fully functional, we would connect this to a Supabase table
-// called `mma_results` where you can quickly log wins after a UFC event.
 async function fetchMMAFightLog(fighterName) {
-  // Example of what the data structure needs to look like for the math engine:
   const mockDatabase = {
     "islam makhachev": [
       {
         result: "Win",
+        opponent: "Arman Tsarukyan",
         isMainEvent: true,
         isOpponentTop5: true,
         isTitleFight: true,
       },
-      // Math: 200 (Reg) + 100 + 150 + 350 = 600 (Post). Total: 800 pts.
     ],
     "jon jones": [
       {
         result: "Win",
+        opponent: "Stipe Miocic",
         isMainEvent: true,
         isOpponentTop5: false,
         isTitleFight: true,
       },
-      // Math: 200 (Reg) + 100 + 0 + 350 = 450 (Post). Total: 650 pts.
     ],
   };
 

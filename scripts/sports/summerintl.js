@@ -1,58 +1,5 @@
-/**
- * calculateSummerIntl
- *
- * This script handles scoring for rotating summer international soccer tournaments.
- * Think of it as a universal adapter — the same plug fits different outlets
- * depending on which tournament is happening that year.
- *
- * ═══════════════════════════════════════════════════════════════
- * 2026 Men's World Cup (48 teams, 5-round knockout):
- * ═══════════════════════════════════════════════════════════════
- *
- * GROUP STAGE / "Regular Season" (Max 400 Points):
- *   Group Win:            100 pts
- *   Group Draw:            35 pts
- *   Group Winner Bonus:   100 pts
- *   Perfect group (3-0-0 + winner): 300 + 100 = 400
- *
- * KNOCKOUT STAGE (Max 600 Points):
- *   Round of 32 Win:       50 pts
- *   Round of 16 Win:       75 pts
- *   Quarterfinal Win:     100 pts
- *   Semifinal Win:        125 pts
- *   Final Win:            250 pts
- *   Champion total:       600 pts
- *
- *   3rd Place Match Win:   75 pts (consolation)
- *
- * ═══════════════════════════════════════════════════════════════
- * For smaller tournaments (32 teams, 4-round knockout):
- * ═══════════════════════════════════════════════════════════════
- *
- * GROUP STAGE (same formula — Max 400):
- *   Group Win:            100 pts
- *   Group Draw:            35 pts
- *   Group Winner Bonus:   100 pts
- *
- * KNOCKOUT STAGE (Max 600 — distributed across 4 rounds):
- *   Round of 16 Win:       75 pts
- *   Quarterfinal Win:     125 pts
- *   Semifinal Win:        150 pts
- *   Final Win:            250 pts
- *   Champion total:       600 pts
- *
- * ═══════════════════════════════════════════════════════════════
- *
- * The scoring is intentionally manual-override-friendly since these are
- * short tournaments (3-7 games total per team) where results can be
- * entered quickly via the Admin Score Override panel after each matchday.
- *
- * For automated scoring, the script fetches ESPN event data when available.
- */
-
 export async function calculateSummerIntl(apiUniqueId, espnSlug) {
   try {
-    // If espnSlug is an array (combined tournaments like Euro + Copa), try each
     const slugs = Array.isArray(espnSlug) ? espnSlug : [espnSlug];
 
     let teamStats = null;
@@ -69,7 +16,6 @@ export async function calculateSummerIntl(apiUniqueId, espnSlug) {
 
       const data = await res.json();
 
-      // Search through groups/conferences for the team
       if (data.children && data.children.length > 0) {
         for (const group of data.children) {
           const entries = group.standings?.entries || [];
@@ -81,7 +27,6 @@ export async function calculateSummerIntl(apiUniqueId, espnSlug) {
         }
       }
 
-      // Flat standings fallback
       if (!teamStats && data.standings?.entries) {
         teamStats = data.standings.entries.find(
           (t) => t.team.id === apiUniqueId,
@@ -95,37 +40,66 @@ export async function calculateSummerIntl(apiUniqueId, espnSlug) {
       console.warn(
         `Could not find team ID ${apiUniqueId} in summer intl soccer standings.`,
       );
-      return { regularSeasonScore: 0, postseasonScore: 0 };
+      return { regularSeasonScore: 0, postseasonScore: 0, breakdown: null };
     }
 
-    // Extract group stage stats
     const winsStat = teamStats.stats.find((s) => s.name === "wins");
     const drawsStat = teamStats.stats.find((s) => s.name === "ties");
+    const lossesStat = teamStats.stats.find((s) => s.name === "losses");
     const groupPosStat = teamStats.stats.find(
       (s) => s.name === "rank" || s.name === "groupRank",
     );
 
     const wins = winsStat ? winsStat.value : 0;
     const draws = drawsStat ? drawsStat.value : 0;
+    const losses = lossesStat ? lossesStat.value : 0;
     const groupRank = groupPosStat ? groupPosStat.value : 99;
 
-    // Group stage scoring
     let regularSeasonScore = wins * 100 + draws * 35;
+    const isGroupWinner = groupRank === 1;
 
-    // Group winner bonus (rank === 1 in their group)
-    if (groupRank === 1) {
+    if (isGroupWinner) {
       regularSeasonScore += 100;
     }
 
-    // Cap at 400
     regularSeasonScore = Math.min(regularSeasonScore, 400);
 
-    // Knockout stage: placeholder for manual override / future automation
     const postseasonScore = 0;
 
-    return { regularSeasonScore, postseasonScore };
+    const breakdown = {
+      sportType: "intl_soccer_tournament",
+      regularSeason: {
+        label: "Group Stage",
+        formula: "(wins × 100) + (draws × 35) + (group winner bonus: 100)",
+        inputs: {
+          wins: wins,
+          draws: draws,
+          losses: losses,
+          groupRank: groupRank,
+          isGroupWinner: isGroupWinner,
+          groupWinnerBonus: isGroupWinner ? 100 : 0,
+        },
+        computed: regularSeasonScore,
+        max: 400,
+      },
+      postseason: {
+        label: "Knockout Stage",
+        formula: "Cumulative knockout round bonuses",
+        milestones: [
+          { label: "Round of 32 Win", pts: 50, achieved: false },
+          { label: "Round of 16 Win", pts: 75, achieved: false },
+          { label: "Quarterfinal Win", pts: 100, achieved: false },
+          { label: "Semifinal Win", pts: 125, achieved: false },
+          { label: "Win the Final", pts: 250, achieved: false },
+        ],
+        computed: postseasonScore,
+        max: 600,
+      },
+    };
+
+    return { regularSeasonScore, postseasonScore, breakdown };
   } catch (error) {
     console.error("Summer Intl Soccer Script Error:", error);
-    return { regularSeasonScore: 0, postseasonScore: 0 };
+    return { regularSeasonScore: 0, postseasonScore: 0, breakdown: null };
   }
 }

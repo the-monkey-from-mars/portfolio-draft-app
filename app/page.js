@@ -6,6 +6,7 @@ import WaiverRulesModal from "../components/WaiverRulesModal";
 import DraftResultsModal from "../components/DraftResultsModal";
 import YearDropdown from "../components/YearDropdown";
 import MobileNav from "../components/MobileNav";
+import ScoreCell from "../components/ScoreCell";
 
 export const revalidate = 0;
 
@@ -35,9 +36,12 @@ export default async function Home({ searchParams }) {
     .eq("is_active", true);
 
   // Fetch roster picks ONLY for the selected portfolio year
+  // NOW includes score_breakdown, regular_season_score, postseason_score, and last_updated_at
   const { data: rosterPicks } = await supabase
     .from("roster_picks")
-    .select(`user_id, sport_id, total_score, entities (display_name)`)
+    .select(
+      `user_id, sport_id, total_score, regular_season_score, postseason_score, score_breakdown, last_updated_at, entities (display_name)`,
+    )
     .eq("portfolio_year", selectedYear);
 
   // Sort the sports chronologically for the table columns
@@ -198,19 +202,23 @@ export default async function Home({ searchParams }) {
                                   : ""
                               }
                             >
-                              <div className="font-semibold text-gray-200">
-                                {pick.entities ? (
-                                  pick.entities.display_name
-                                ) : (
-                                  <span className="text-gray-500 italic">
-                                    Pending...
-                                  </span>
-                                )}
-                              </div>
-
-                              <div className="text-green-400 text-xs mt-1 font-bold">
-                                {Number(pick.total_score) || 0} pts
-                              </div>
+                              <ScoreCell
+                                entityName={
+                                  pick.entities
+                                    ? pick.entities.display_name
+                                    : null
+                                }
+                                sportName={sport.name}
+                                regularScore={
+                                  Number(pick.regular_season_score) || 0
+                                }
+                                postseasonScore={
+                                  Number(pick.postseason_score) || 0
+                                }
+                                totalScore={Number(pick.total_score) || 0}
+                                breakdown={pick.score_breakdown}
+                                lastUpdated={pick.last_updated_at}
+                              />
                             </div>
                           ))
                         ) : (

@@ -18,9 +18,10 @@ export async function calculateATP(athleteName) {
     const $ = cheerio.load(html);
 
     let leaderPoints = 0;
+    let leaderName = "Unknown";
     let athletePoints = 0;
+    let athleteRank = null;
 
-    // We split the name to grab the last name (e.g., "Felix Auger-Aliassime" becomes "auger-aliassime")
     const athleteLastName = athleteName.split(" ").pop().toLowerCase();
 
     $("tr").each((i, el) => {
@@ -31,25 +32,26 @@ export async function calculateATP(athleteName) {
           cells.push($(td).text().replace(/,/g, "").trim().toLowerCase()),
         );
 
-      // Ensure the row has at least 6 columns (Index 5 = Points)
       if (cells.length >= 6) {
-        // Pure Array Indexing: We know Points are exactly in the 6th column
         const points = parseInt(cells[5], 10);
 
         if (!isNaN(points) && points > 0) {
-          // The FIRST row with valid points is mathematically the #1 Leader
           if (leaderPoints === 0) {
             leaderPoints = points;
+            // Try to extract leader name from first 4 cells
+            const nameCell = cells.slice(1, 4).find((c) => c.match(/[a-z]/));
+            if (nameCell) leaderName = nameCell;
           }
 
-          // Check ONLY the first 4 columns for the name.
-          // This absolutely prevents the "Next Player" bug on the right side.
           const isOurAthlete = cells
             .slice(0, 4)
             .some((cellText) => cellText.includes(athleteLastName));
 
           if (isOurAthlete) {
             athletePoints = points;
+            // Rank is typically in the first column
+            const rank = parseInt(cells[0], 10);
+            if (!isNaN(rank)) athleteRank = rank;
           }
         }
       }
@@ -59,16 +61,66 @@ export async function calculateATP(athleteName) {
       console.warn(
         `[${athleteName}] Check failed. Pts: ${athletePoints}, Leader: ${leaderPoints}`,
       );
-      return { regularSeasonScore: 0, postseasonScore: 0 };
+      return { regularSeasonScore: 0, postseasonScore: 0, breakdown: null };
     }
 
     const regularSeasonScore = Math.min(
       Math.round((athletePoints / leaderPoints) * 400),
       400,
     );
-    return { regularSeasonScore, postseasonScore: 0 };
+
+    const breakdown = {
+      sportType: "tennis_relative",
+      regularSeason: {
+        label: "ATP Race Points (Relative to Leader)",
+        formula: "(athletePts / leaderPts) × 400",
+        inputs: {
+          athletePoints: athletePoints,
+          leaderPoints: leaderPoints,
+          leaderName: leaderName,
+          athleteRank: athleteRank,
+        },
+        computed: regularSeasonScore,
+        max: 400,
+      },
+      postseason: {
+        label: "Grand Slam Performance",
+        formula:
+          "Rd32 (+3.6), Rd16 (+7.1), QF (+14.3), SF (+28.6), Final (+39.2), Win (+57.2) — cumulative per Major",
+        milestones: [
+          {
+            label: "Australian Open",
+            pts: 0,
+            achieved: false,
+            detail: "Not yet scored",
+          },
+          {
+            label: "French Open",
+            pts: 0,
+            achieved: false,
+            detail: "Not yet scored",
+          },
+          {
+            label: "Wimbledon",
+            pts: 0,
+            achieved: false,
+            detail: "Not yet scored",
+          },
+          {
+            label: "US Open",
+            pts: 0,
+            achieved: false,
+            detail: "Not yet scored",
+          },
+        ],
+        computed: 0,
+        max: 600,
+      },
+    };
+
+    return { regularSeasonScore, postseasonScore: 0, breakdown };
   } catch (error) {
     console.error(`Error calculating ATP (${athleteName}):`, error.message);
-    return { regularSeasonScore: 0, postseasonScore: 0 };
+    return { regularSeasonScore: 0, postseasonScore: 0, breakdown: null };
   }
 }

@@ -71,10 +71,20 @@ export default function MobileNav() {
               </Link>
 
               <div className="pt-3 border-t border-gray-700 space-y-3">
-                <div onClick={() => setIsOpen(false)}>
+                {/*
+                  FIX: Previously wrapping these in <div onClick={() => setIsOpen(false)}>
+                  caused the hamburger panel to close BEFORE the modal could open.
+                  The parent div's click handler fired first, unmounting the panel
+                  (and its children) before the modal button's onClick could execute.
+
+                  Now: no auto-close wrapper. The modal opens on top of everything
+                  (z-50 for panel, z-50 for modal backdrop). When the user closes
+                  the modal, they're back in the hamburger panel.
+                */}
+                <div>
                   <RulesModal />
                 </div>
-                <div onClick={() => setIsOpen(false)}>
+                <div>
                   <WaiverRulesModal />
                 </div>
               </div>

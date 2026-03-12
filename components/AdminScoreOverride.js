@@ -1,64 +1,45 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { supabase } from "../lib/supabase";
 import { SPORT_CONFIG } from "../lib/sportConfig";
-
-/**
- * AdminScoreOverride
- *
- * A modal-based admin tool that allows manual score entry for any roster pick.
- * Use cases:
- *   - API/scraping failures (LPGA Cloudflare blocks, LOVB site changes)
- *   - Postseason scores not yet automated in sport scripts
- *   - MMA manual fight result logging
- *   - Any correction needed to scraped data
- *
- * Database requirements:
- *   ALTER TABLE roster_picks ADD COLUMN IF NOT EXISTS is_manual_override BOOLEAN DEFAULT false;
- *   ALTER TABLE roster_picks ADD COLUMN IF NOT EXISTS override_note TEXT;
- *
- * How it works:
- *   When is_manual_override = true, the masterCron will SKIP that pick entirely,
- *   preserving whatever scores the admin has manually entered.
- *   When is_manual_override = false (default), the cron overwrites as usual.
- */
+import { SCORING_SCHEMAS } from "../lib/scoringSchemas";
 
 export default function AdminScoreOverride() {
   const [isOpen, setIsOpen] = useState(false);
   const [picks, setPicks] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [saving, setSaving] = useState(null); // pick id currently being saved
+  const [saving, setSaving] = useState(null);
   const [filterSport, setFilterSport] = useState("all");
   const [filterOverride, setFilterOverride] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
-  const [editingPick, setEditingPick] = useState(null);
-  const [editValues, setEditValues] = useState({
-    regular_season_score: 0,
-    postseason_score: 0,
-    is_manual_override: false,
-    override_note: "",
-  });
   const [toast, setToast] = useState(null);
 
-  // Fetch all roster picks with user and entity info
+  // Edit state
+  const [editingPick, setEditingPick] = useState(null);
+  const [regInputs, setRegInputs] = useState({});
+  const [postMilestones, setPostMilestones] = useState([]);
+  const [isManualOverride, setIsManualOverride] = useState(false);
+  const [overrideNote, setOverrideNote] = useState("");
+
+  // Live-computed preview scores
+  const [previewRegScore, setPreviewRegScore] = useState(0);
+  const [previewPostScore, setPreviewPostScore] = useState(0);
+
+  const showToast = (message, type = "success") => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3500);
+  };
+
+  // ─── Data Fetching ───────────────────────────────────────
+
   const fetchPicks = async () => {
     setLoading(true);
     const { data, error } = await supabase
       .from("roster_picks")
       .select(
-        `
-        id,
-        sport_id,
-        regular_season_score,
-        postseason_score,
-        total_score,
-        is_manual_override,
-        override_note,
-        last_updated_at,
-        users ( name ),
-        sports ( name ),
-        entities ( display_name )
-      `,
+        `id, sport_id, regular_season_score, postseason_score, total_score,
+        is_manual_override, override_note, last_updated_at, score_breakdown,
+        users ( name ), sports ( name ), entities ( display_name )`,
       )
       .not("entity_id", "is", null)
       .order("sport_id", { ascending: true });
@@ -72,37 +53,143 @@ export default function AdminScoreOverride() {
     setLoading(false);
   };
 
-  const showToast = (message, type = "success") => {
-    setToast({ message, type });
-    setTimeout(() => setToast(null), 3000);
+  // ─── Live Recompute ──────────────────────────────────────
+
+  const recomputePreview = (schema, inputs, milestones) => {
+    if (!schema) return;
+    const regResult = schema.regularSeason.compute(inputs);
+    setPreviewRegScore(regResult.score);
+    const postScore = schema.postseason.computeFromMilestones(milestones);
+    setPreviewPostScore(postScore);
   };
+
+  // ─── Open Editor ─────────────────────────────────────────
 
   const openEditor = (pick) => {
     setEditingPick(pick);
-    setEditValues({
-      regular_season_score: pick.regular_season_score || 0,
-      postseason_score: pick.postseason_score || 0,
-      is_manual_override: pick.is_manual_override || false,
-      override_note: pick.override_note || "",
-    });
+    setIsManualOverride(pick.is_manual_override || false);
+    setOverrideNote(pick.override_note || "");
+
+    const schema = SCORING_SCHEMAS[pick.sport_id];
+    const existing = pick.score_breakdown;
+
+    if (schema) {
+      // Pre-populate regular season inputs from existing breakdown
+      const defaultRegInputs = {};
+      schema.regularSeason.fields.forEach((field) => {
+        const saved = existing?.regularSeason?.inputs?.[field.key];
+        if (saved !== undefined && saved !== null) {
+          defaultRegInputs[field.key] = saved;
+        } else {
+          defaultRegInputs[field.key] = field.type === "checkbox" ? false : "";
+        }
+      });
+      setRegInputs(defaultRegInputs);
+
+      // Pre-populate milestones from existing breakdown
+      const defaultMilestones = schema.postseason.milestones.map((m) => {
+        const saved = existing?.postseason?.milestones?.find(
+          (sm) => sm.label === m.label,
+        );
+        if (m.type === "event" && m.tiers) {
+          let savedTier = 0;
+          if (saved && saved.detail) {
+            const tierIdx = m.tiers.findIndex((t) => t.label === saved.detail);
+            if (tierIdx > 0) savedTier = tierIdx;
+          }
+          return { ...m, selectedTier: savedTier };
+        }
+        return { ...m, achieved: saved ? saved.achieved : false };
+      });
+      setPostMilestones(defaultMilestones);
+
+      recomputePreview(schema, defaultRegInputs, defaultMilestones);
+    } else {
+      setRegInputs({ rawRegScore: pick.regular_season_score || 0 });
+      setPostMilestones([]);
+      setPreviewRegScore(pick.regular_season_score || 0);
+      setPreviewPostScore(pick.postseason_score || 0);
+    }
   };
+
+  // ─── Input Handlers ──────────────────────────────────────
+
+  const handleRegInputChange = (key, value, fieldType) => {
+    const newInputs = { ...regInputs };
+    if (fieldType === "checkbox") {
+      newInputs[key] = value;
+    } else if (fieldType === "text") {
+      newInputs[key] = value;
+    } else {
+      newInputs[key] = value === "" ? "" : Number(value);
+    }
+    setRegInputs(newInputs);
+    const schema = SCORING_SCHEMAS[editingPick.sport_id];
+    if (schema) recomputePreview(schema, newInputs, postMilestones);
+  };
+
+  const handleMilestoneToggle = (index) => {
+    const updated = [...postMilestones];
+    updated[index] = { ...updated[index], achieved: !updated[index].achieved };
+    setPostMilestones(updated);
+    const schema = SCORING_SCHEMAS[editingPick.sport_id];
+    if (schema) recomputePreview(schema, regInputs, updated);
+  };
+
+  const handleEventTierChange = (index, tierIndex) => {
+    const updated = [...postMilestones];
+    updated[index] = { ...updated[index], selectedTier: tierIndex };
+    setPostMilestones(updated);
+    const schema = SCORING_SCHEMAS[editingPick.sport_id];
+    if (schema) recomputePreview(schema, regInputs, updated);
+  };
+
+  // ─── Save ────────────────────────────────────────────────
 
   const saveOverride = async () => {
     if (!editingPick) return;
     setSaving(editingPick.id);
 
-    const totalScore =
-      Number(editValues.regular_season_score) +
-      Number(editValues.postseason_score);
+    const schema = SCORING_SCHEMAS[editingPick.sport_id];
+    let regularSeasonScore, postseasonScore, scoreBreakdown;
+
+    if (schema) {
+      const regResult = schema.regularSeason.compute(regInputs);
+      regularSeasonScore = regResult.score;
+      postseasonScore = schema.postseason.computeFromMilestones(postMilestones);
+
+      const regBreakdown = schema.regularSeason.buildBreakdown(
+        regInputs,
+        regularSeasonScore,
+        regResult.derived || {},
+      );
+      const postBreakdown = schema.postseason.buildBreakdown(
+        postMilestones,
+        postseasonScore,
+      );
+
+      scoreBreakdown = {
+        sportType: schema.sportType,
+        regularSeason: regBreakdown,
+        postseason: postBreakdown,
+      };
+    } else {
+      regularSeasonScore = Number(regInputs.rawRegScore) || 0;
+      postseasonScore = 0;
+      scoreBreakdown = null;
+    }
+
+    const totalScore = regularSeasonScore + postseasonScore;
 
     const { error } = await supabase
       .from("roster_picks")
       .update({
-        regular_season_score: Number(editValues.regular_season_score),
-        postseason_score: Number(editValues.postseason_score),
+        regular_season_score: regularSeasonScore,
+        postseason_score: postseasonScore,
         total_score: totalScore,
-        is_manual_override: editValues.is_manual_override,
-        override_note: editValues.override_note || null,
+        is_manual_override: isManualOverride,
+        override_note: overrideNote || null,
+        score_breakdown: scoreBreakdown,
         last_updated_at: new Date().toISOString(),
       })
       .eq("id", editingPick.id);
@@ -115,7 +202,7 @@ export default function AdminScoreOverride() {
         `Saved ${editingPick.entities?.display_name || "pick"} — ${totalScore} pts`,
       );
       setEditingPick(null);
-      fetchPicks(); // Refresh the list
+      fetchPicks();
     }
     setSaving(null);
   };
@@ -123,12 +210,8 @@ export default function AdminScoreOverride() {
   const clearOverride = async (pick) => {
     const { error } = await supabase
       .from("roster_picks")
-      .update({
-        is_manual_override: false,
-        override_note: null,
-      })
+      .update({ is_manual_override: false, override_note: null })
       .eq("id", pick.id);
-
     if (error) {
       showToast("Failed to clear override", "error");
     } else {
@@ -139,7 +222,8 @@ export default function AdminScoreOverride() {
     }
   };
 
-  // Filtered picks
+  // ─── Filtering ───────────────────────────────────────────
+
   const filteredPicks = picks.filter((p) => {
     if (filterSport !== "all" && p.sport_id !== Number(filterSport))
       return false;
@@ -147,17 +231,38 @@ export default function AdminScoreOverride() {
     if (filterOverride === "auto" && p.is_manual_override) return false;
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
-      const entityName = (p.entities?.display_name || "").toLowerCase();
-      const userName = (p.users?.name || "").toLowerCase();
-      if (!entityName.includes(q) && !userName.includes(q)) return false;
+      const eName = (p.entities?.display_name || "").toLowerCase();
+      const uName = (p.users?.name || "").toLowerCase();
+      if (!eName.includes(q) && !uName.includes(q)) return false;
     }
     return true;
   });
 
-  // Get unique sport IDs from current picks for the filter dropdown
   const sportIds = [...new Set(picks.map((p) => p.sport_id))].sort(
     (a, b) => (SPORT_CONFIG[a]?.order || 99) - (SPORT_CONFIG[b]?.order || 99),
   );
+
+  // ─── Helpers for event-tier point display ────────────────
+
+  const getEventPoints = (milestone) => {
+    const sel = milestone.selectedTier || 0;
+    if (sel === 0) return 0;
+    if (milestone.cumulative) {
+      let pts = 0;
+      for (let i = 1; i <= sel; i++) pts += milestone.tiers[i]?.pts || 0;
+      return pts;
+    }
+    return milestone.tiers[sel]?.pts || 0;
+  };
+
+  const formatPts = (pts) =>
+    Number.isInteger(pts) ? String(pts) : pts.toFixed(1);
+
+  // ─── Current editor schema ───────────────────────────────
+
+  const schema = editingPick ? SCORING_SCHEMAS[editingPick.sport_id] : null;
+
+  // ─── Render ──────────────────────────────────────────────
 
   return (
     <>
@@ -174,7 +279,7 @@ export default function AdminScoreOverride() {
       {isOpen && (
         <div className="fixed inset-0 bg-black/85 flex items-center justify-center z-50 p-4">
           <div className="bg-gray-900 border border-gray-700 rounded-lg max-w-5xl w-full relative shadow-2xl flex flex-col max-h-[90vh]">
-            {/* Header */}
+            {/* ── Header ── */}
             <div className="p-5 border-b border-gray-700 flex-shrink-0">
               <button
                 onClick={() => {
@@ -189,11 +294,11 @@ export default function AdminScoreOverride() {
                 Admin Score Overrides
               </h2>
               <p className="text-gray-400 text-xs mt-1">
-                Manually set scores when APIs fail or for postseason data. Picks
-                marked as &quot;Override&quot; are skipped by the daily cron.
+                Enter raw stats and the system computes scores + breakdown
+                automatically. Picks marked &quot;Override&quot; are skipped by
+                the daily cron.
               </p>
 
-              {/* Filters */}
               <div className="flex flex-wrap gap-3 mt-4">
                 <select
                   value={filterSport}
@@ -207,7 +312,6 @@ export default function AdminScoreOverride() {
                     </option>
                   ))}
                 </select>
-
                 <select
                   value={filterOverride}
                   onChange={(e) => setFilterOverride(e.target.value)}
@@ -217,7 +321,6 @@ export default function AdminScoreOverride() {
                   <option value="overrides">Overrides Only</option>
                   <option value="auto">Auto-scored Only</option>
                 </select>
-
                 <input
                   type="text"
                   placeholder="Search player or manager..."
@@ -228,7 +331,7 @@ export default function AdminScoreOverride() {
               </div>
             </div>
 
-            {/* Table */}
+            {/* ── Table ── */}
             <div className="overflow-y-auto flex-grow px-5 pb-2">
               {loading ? (
                 <div className="text-center text-gray-500 py-10">
@@ -256,9 +359,7 @@ export default function AdminScoreOverride() {
                     {filteredPicks.map((pick) => (
                       <tr
                         key={pick.id}
-                        className={`border-b border-gray-800 hover:bg-gray-800/50 ${
-                          pick.is_manual_override ? "bg-amber-950/20" : ""
-                        }`}
+                        className={`border-b border-gray-800 hover:bg-gray-800/50 ${pick.is_manual_override ? "bg-amber-950/20" : ""}`}
                       >
                         <td className="py-2 pr-2 text-gray-400">
                           {SPORT_CONFIG[pick.sport_id]?.name ||
@@ -266,6 +367,16 @@ export default function AdminScoreOverride() {
                         </td>
                         <td className="py-2 pr-2 text-white font-medium">
                           {pick.entities?.display_name || "—"}
+                          {pick.is_manual_override && (
+                            <span
+                              className="ml-2 text-xs bg-amber-800/60 text-amber-300 px-1.5 py-0.5 rounded"
+                              title={
+                                pick.override_note || "Manual override active"
+                              }
+                            >
+                              Override
+                            </span>
+                          )}
                         </td>
                         <td className="py-2 pr-2 text-gray-400">
                           {pick.users?.name || "—"}
@@ -281,10 +392,7 @@ export default function AdminScoreOverride() {
                         </td>
                         <td className="py-2 pr-2 text-center">
                           {pick.is_manual_override ? (
-                            <span
-                              className="text-xs bg-amber-800/60 text-amber-300 px-2 py-0.5 rounded cursor-help"
-                              title={pick.override_note || "Manual override"}
-                            >
+                            <span className="text-xs bg-amber-800/60 text-amber-300 px-2 py-0.5 rounded">
                               Override
                             </span>
                           ) : (
@@ -302,7 +410,6 @@ export default function AdminScoreOverride() {
                             <button
                               onClick={() => clearOverride(pick)}
                               className="text-xs bg-gray-700 hover:bg-red-700 text-gray-300 hover:text-white px-2 py-1 rounded"
-                              title="Remove override, let cron resume"
                             >
                               Clear
                             </button>
@@ -315,7 +422,7 @@ export default function AdminScoreOverride() {
               )}
             </div>
 
-            {/* Footer summary */}
+            {/* ── Footer ── */}
             <div className="px-5 py-3 border-t border-gray-700 flex-shrink-0 flex justify-between text-xs text-gray-500">
               <span>
                 {filteredPicks.length} pick
@@ -327,126 +434,272 @@ export default function AdminScoreOverride() {
             </div>
           </div>
 
-          {/* Edit sub-modal */}
+          {/* ════════════════════════════════════════════════════
+              SPORT-AWARE EDIT SUB-MODAL
+              ════════════════════════════════════════════════════ */}
           {editingPick && (
             <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[60] p-4">
-              <div className="bg-gray-850 border border-gray-600 rounded-lg max-w-md w-full p-6 shadow-2xl bg-gray-900">
-                <h3 className="text-lg font-bold text-white mb-1">
-                  Edit Score
-                </h3>
-                <p className="text-gray-400 text-sm mb-4">
-                  {editingPick.entities?.display_name} —{" "}
-                  {SPORT_CONFIG[editingPick.sport_id]?.name ||
-                    editingPick.sports?.name}
-                  <span className="text-gray-600 ml-2">
-                    ({editingPick.users?.name})
-                  </span>
-                </p>
-
-                <div className="space-y-4">
-                  {/* Regular Season Score */}
-                  <div>
-                    <label className="block text-xs text-gray-400 mb-1">
-                      Regular Season Score{" "}
-                      <span className="text-gray-600">(max 400)</span>
-                    </label>
-                    <input
-                      type="number"
-                      min="0"
-                      max="400"
-                      value={editValues.regular_season_score}
-                      onChange={(e) =>
-                        setEditValues((v) => ({
-                          ...v,
-                          regular_season_score: e.target.value,
-                        }))
-                      }
-                      className="w-full bg-gray-800 border border-gray-600 text-white rounded px-3 py-2 text-lg font-mono"
-                    />
-                  </div>
-
-                  {/* Postseason Score */}
-                  <div>
-                    <label className="block text-xs text-gray-400 mb-1">
-                      Postseason Score{" "}
-                      <span className="text-gray-600">(max 600)</span>
-                    </label>
-                    <input
-                      type="number"
-                      min="0"
-                      max="600"
-                      value={editValues.postseason_score}
-                      onChange={(e) =>
-                        setEditValues((v) => ({
-                          ...v,
-                          postseason_score: e.target.value,
-                        }))
-                      }
-                      className="w-full bg-gray-800 border border-gray-600 text-white rounded px-3 py-2 text-lg font-mono"
-                    />
-                  </div>
-
-                  {/* Total preview */}
-                  <div className="bg-gray-800 rounded px-3 py-2 flex justify-between items-center">
-                    <span className="text-gray-400 text-sm">Total Score</span>
-                    <span className="text-green-400 text-xl font-bold font-mono">
-                      {Number(editValues.regular_season_score || 0) +
-                        Number(editValues.postseason_score || 0)}
+              <div className="bg-gray-900 border border-gray-600 rounded-lg max-w-xl w-full shadow-2xl flex flex-col max-h-[90vh]">
+                {/* Edit Header + Live Preview */}
+                <div className="p-5 border-b border-gray-700 flex-shrink-0">
+                  <h3 className="text-lg font-bold text-white">
+                    {editingPick.entities?.display_name}
+                  </h3>
+                  <p className="text-gray-400 text-sm">
+                    {SPORT_CONFIG[editingPick.sport_id]?.name ||
+                      editingPick.sports?.name}
+                    <span className="text-gray-600 ml-2">
+                      ({editingPick.users?.name})
                     </span>
-                  </div>
+                  </p>
 
-                  {/* Override toggle */}
-                  <div className="flex items-center gap-3 p-3 bg-gray-800 rounded border border-gray-700">
-                    <input
-                      type="checkbox"
-                      id="override-toggle"
-                      checked={editValues.is_manual_override}
-                      onChange={(e) =>
-                        setEditValues((v) => ({
-                          ...v,
-                          is_manual_override: e.target.checked,
-                        }))
-                      }
-                      className="w-4 h-4 accent-amber-500"
-                    />
-                    <label
-                      htmlFor="override-toggle"
-                      className="text-sm text-gray-300"
-                    >
-                      <span className="font-medium text-amber-400">
-                        Lock as Manual Override
-                      </span>
-                      <br />
-                      <span className="text-xs text-gray-500">
-                        When locked, the daily cron will skip this pick and
-                        preserve your manual scores.
-                      </span>
-                    </label>
-                  </div>
-
-                  {/* Note */}
-                  <div>
-                    <label className="block text-xs text-gray-400 mb-1">
-                      Admin Note{" "}
-                      <span className="text-gray-600">(optional)</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={editValues.override_note}
-                      onChange={(e) =>
-                        setEditValues((v) => ({
-                          ...v,
-                          override_note: e.target.value,
-                        }))
-                      }
-                      placeholder="e.g., LPGA API down, manual entry from lpga.com"
-                      className="w-full bg-gray-800 border border-gray-600 text-gray-300 rounded px-3 py-2 text-sm"
-                    />
+                  <div className="flex gap-3 mt-4">
+                    <div className="flex-1 bg-gray-800 rounded px-3 py-2 text-center border border-gray-700">
+                      <div className="text-[10px] text-gray-500 uppercase">
+                        Regular
+                      </div>
+                      <div className="text-lg font-bold text-blue-400">
+                        {previewRegScore}
+                        <span className="text-gray-600 text-xs">/400</span>
+                      </div>
+                    </div>
+                    <div className="flex-1 bg-gray-800 rounded px-3 py-2 text-center border border-gray-700">
+                      <div className="text-[10px] text-gray-500 uppercase">
+                        Postseason
+                      </div>
+                      <div className="text-lg font-bold text-yellow-400">
+                        {previewPostScore}
+                        <span className="text-gray-600 text-xs">/600</span>
+                      </div>
+                    </div>
+                    <div className="flex-1 bg-gray-800 rounded px-3 py-2 text-center border border-green-800/50">
+                      <div className="text-[10px] text-gray-500 uppercase">
+                        Total
+                      </div>
+                      <div className="text-lg font-bold text-green-400">
+                        {previewRegScore + previewPostScore}
+                        <span className="text-gray-600 text-xs">/1000</span>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
-                {/* Actions */}
-                <div className="flex justify-end gap-3 mt-6">
+                {/* Edit Body — scrollable */}
+                <div className="overflow-y-auto flex-grow p-5 space-y-6">
+                  {schema ? (
+                    <>
+                      {/* ── Regular Season Inputs ── */}
+                      <div>
+                        <h4 className="text-sm font-bold text-blue-400 uppercase tracking-wide mb-3">
+                          Regular Season Inputs
+                        </h4>
+                        <div className="space-y-3">
+                          {schema.regularSeason.fields.map((field) => (
+                            <div key={field.key}>
+                              {field.type === "checkbox" ? (
+                                <label className="flex items-center gap-3 cursor-pointer">
+                                  <input
+                                    type="checkbox"
+                                    checked={!!regInputs[field.key]}
+                                    onChange={(e) =>
+                                      handleRegInputChange(
+                                        field.key,
+                                        e.target.checked,
+                                        "checkbox",
+                                      )
+                                    }
+                                    className="w-4 h-4 accent-blue-500"
+                                  />
+                                  <span className="text-sm text-gray-300">
+                                    {field.label}
+                                  </span>
+                                </label>
+                              ) : (
+                                <div>
+                                  <label className="block text-xs text-gray-400 mb-1">
+                                    {field.label}
+                                  </label>
+                                  <input
+                                    type={field.type || "number"}
+                                    min={field.min}
+                                    step={field.step || undefined}
+                                    value={regInputs[field.key] ?? ""}
+                                    onChange={(e) =>
+                                      handleRegInputChange(
+                                        field.key,
+                                        e.target.value,
+                                        field.type || "number",
+                                      )
+                                    }
+                                    className="w-full bg-gray-800 border border-gray-600 text-white rounded px-3 py-2 text-sm font-mono"
+                                    placeholder={
+                                      field.required === false
+                                        ? "Optional"
+                                        : undefined
+                                    }
+                                  />
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* ── Postseason Milestones ── */}
+                      <div>
+                        <h4 className="text-sm font-bold text-yellow-400 uppercase tracking-wide mb-3">
+                          {schema.postseason.label}
+                        </h4>
+                        <div className="space-y-1.5">
+                          {postMilestones.map((milestone, idx) =>
+                            milestone.type === "event" && milestone.tiers ? (
+                              /* ── Event-Tier Dropdown ── */
+                              <div
+                                key={idx}
+                                className={`text-sm py-2.5 px-3 rounded border transition ${
+                                  (milestone.selectedTier || 0) > 0
+                                    ? "bg-green-900/20 border-green-800/40"
+                                    : "bg-gray-800/30 border-gray-700/30"
+                                }`}
+                              >
+                                <div className="flex items-center justify-between mb-1.5">
+                                  <span
+                                    className={
+                                      (milestone.selectedTier || 0) > 0
+                                        ? "text-green-300 font-medium"
+                                        : "text-gray-400"
+                                    }
+                                  >
+                                    {milestone.label}
+                                  </span>
+                                  <span
+                                    className={`font-bold text-sm ${(milestone.selectedTier || 0) > 0 ? "text-green-400" : "text-gray-600"}`}
+                                  >
+                                    +{formatPts(getEventPoints(milestone))}
+                                  </span>
+                                </div>
+                                <select
+                                  value={milestone.selectedTier || 0}
+                                  onChange={(e) =>
+                                    handleEventTierChange(
+                                      idx,
+                                      Number(e.target.value),
+                                    )
+                                  }
+                                  className="w-full bg-gray-800 border border-gray-600 text-gray-300 text-sm rounded px-2 py-1.5"
+                                >
+                                  {milestone.tiers.map((tier, tIdx) => (
+                                    <option key={tIdx} value={tIdx}>
+                                      {tier.label}
+                                      {tIdx > 0 ? ` (+${tier.pts})` : ""}
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+                            ) : (
+                              /* ── Standard Checkbox Milestone ── */
+                              <label
+                                key={idx}
+                                className={`flex items-center justify-between cursor-pointer text-sm py-2.5 px-3 rounded border transition ${
+                                  milestone.achieved
+                                    ? "bg-green-900/20 border-green-800/40"
+                                    : "bg-gray-800/30 border-gray-700/30 hover:border-gray-600"
+                                }`}
+                              >
+                                <div className="flex items-center gap-3">
+                                  <input
+                                    type="checkbox"
+                                    checked={milestone.achieved}
+                                    onChange={() => handleMilestoneToggle(idx)}
+                                    className="w-4 h-4 accent-green-500"
+                                  />
+                                  <span
+                                    className={
+                                      milestone.achieved
+                                        ? "text-green-300"
+                                        : "text-gray-400"
+                                    }
+                                  >
+                                    {milestone.label}
+                                  </span>
+                                </div>
+                                <span
+                                  className={`font-bold ${milestone.achieved ? "text-green-400" : "text-gray-600"}`}
+                                >
+                                  +{milestone.pts}
+                                </span>
+                              </label>
+                            ),
+                          )}
+                        </div>
+                      </div>
+                    </>
+                  ) : (
+                    <div>
+                      <p className="text-gray-400 text-sm mb-4">
+                        No sport-specific schema for sport ID{" "}
+                        {editingPick.sport_id}. Raw score entry:
+                      </p>
+                      <label className="block text-xs text-gray-400 mb-1">
+                        Regular Season Score (0-400)
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        max="400"
+                        value={regInputs.rawRegScore ?? ""}
+                        onChange={(e) =>
+                          setRegInputs({
+                            rawRegScore: Number(e.target.value) || 0,
+                          })
+                        }
+                        className="w-full bg-gray-800 border border-gray-600 text-white rounded px-3 py-2 text-lg font-mono"
+                      />
+                    </div>
+                  )}
+
+                  {/* ── Override Controls ── */}
+                  <div className="space-y-3 pt-3 border-t border-gray-700">
+                    <div className="flex items-center gap-3 p-3 bg-gray-800 rounded border border-gray-700">
+                      <input
+                        type="checkbox"
+                        id="override-toggle-v2"
+                        checked={isManualOverride}
+                        onChange={(e) => setIsManualOverride(e.target.checked)}
+                        className="w-4 h-4 accent-amber-500"
+                      />
+                      <label
+                        htmlFor="override-toggle-v2"
+                        className="text-sm text-gray-300"
+                      >
+                        <span className="font-medium text-amber-400">
+                          Lock as Manual Override
+                        </span>
+                        <br />
+                        <span className="text-xs text-gray-500">
+                          When locked, the daily cron will skip this pick and
+                          preserve your manual scores.
+                        </span>
+                      </label>
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-400 mb-1">
+                        Admin Note{" "}
+                        <span className="text-gray-600">(optional)</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={overrideNote}
+                        onChange={(e) => setOverrideNote(e.target.value)}
+                        placeholder="e.g., LPGA API down, manual entry from lpga.com"
+                        className="w-full bg-gray-800 border border-gray-600 text-gray-300 rounded px-3 py-2 text-sm"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Edit Footer */}
+                <div className="p-5 border-t border-gray-700 flex-shrink-0 flex justify-end gap-3">
                   <button
                     onClick={() => setEditingPick(null)}
                     className="text-sm text-gray-400 hover:text-white px-4 py-2"
@@ -456,16 +709,18 @@ export default function AdminScoreOverride() {
                   <button
                     onClick={saveOverride}
                     disabled={saving === editingPick.id}
-                    className="text-sm bg-amber-600 hover:bg-amber-500 disabled:bg-gray-700 text-white font-bold px-5 py-2 rounded transition"
+                    className="text-sm bg-amber-600 hover:bg-amber-500 disabled:bg-gray-700 text-white font-bold px-6 py-2 rounded transition"
                   >
-                    {saving === editingPick.id ? "Saving..." : "Save"}
+                    {saving === editingPick.id
+                      ? "Saving..."
+                      : `Save (${previewRegScore + previewPostScore} pts)`}
                   </button>
                 </div>
               </div>
             </div>
           )}
 
-          {/* Toast notification */}
+          {/* Toast */}
           {toast && (
             <div
               className={`fixed bottom-6 right-6 z-[70] px-4 py-3 rounded shadow-lg text-sm font-medium ${

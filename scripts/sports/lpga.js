@@ -4,7 +4,6 @@ export async function calculateLPGA(athleteName) {
   const statsUrl = "https://www.lpga.com/stats-and-rankings/race-to-cme-globe/";
 
   try {
-    // --- STEP 1: Get leader points from the stats overview page (no Cloudflare) ---
     const statsRes = await fetch(statsUrl, {
       headers: {
         "User-Agent":
@@ -25,33 +24,28 @@ export async function calculateLPGA(athleteName) {
       .toLowerCase();
 
     let leaderPoints = 0;
+    let leaderName = "Unknown";
     let athletePoints = 0;
-    let athleteSlug = null; // e.g. "lydia-ko/98109"
+    let athleteSlug = null;
 
-    // The CME Globe overview page lists the top ~15 players with links and points.
-    // Each player appears TWICE (featured card + list), so we deduplicate by athlete ID.
     const seenIds = new Set();
 
     $("a[href*='/athletes/']").each((i, el) => {
       const href = $(el).attr("href") || "";
 
-      // Extract athlete slug and ID: "/athletes/lydia-ko/98109/overview"
       const slugMatch = href.match(/\/athletes\/([^/]+)\/(\d+)\//);
       if (!slugMatch) return;
       const slugName = slugMatch[1].replace(/-/g, " ").toLowerCase();
       const athleteId = slugMatch[2];
 
-      // Skip duplicates (the page renders each athlete twice)
       if (seenIds.has(athleteId)) return;
 
-      // Points appear as a sibling text node or nearby element — parse the full section text
       const section = $(el)
         .closest("div, li")
         .text()
         .replace(/\s+/g, " ")
         .trim();
 
-      // Extract points: a number like "595.000" or "312.500"
       const pointsMatch = section.match(/(\d{1,4}\.\d{3})/);
       if (!pointsMatch) return;
       const points = parseFloat(pointsMatch[1]);
@@ -61,15 +55,14 @@ export async function calculateLPGA(athleteName) {
 
       if (leaderPoints === 0) {
         leaderPoints = points;
+        leaderName = slugName;
         console.log(`[LPGA] Leader: "${slugName}" @ ${points} pts`);
       }
 
-      // Match athlete by name — multiple strategies for robustness
       const isMatch =
         athleteFullName === slugName ||
         athleteFullName.includes(slugName) ||
         slugName.includes(athleteFullName) ||
-        // Collapsed comparison: "somilee" vs "somilee" for Korean names with spacing variations
         athleteFullName.replace(/\s/g, "") === slugName.replace(/\s/g, "");
 
       if (isMatch) {
@@ -81,17 +74,14 @@ export async function calculateLPGA(athleteName) {
       }
     });
 
-    // --- STEP 2: If athlete not in top 5, look up their individual athlete page ---
+    // --- STEP 2: If athlete not in top listing, look up their individual page ---
     if (leaderPoints > 0 && athletePoints === 0) {
       console.log(
         `[LPGA] ${athleteName} not in top 15 on CME overview, fetching individual athlete page...`,
       );
 
-      // Build slug from name: "Lydia Ko" → "lydia-ko"
       const nameSlug = athleteName.trim().toLowerCase().replace(/\s+/g, "-");
-      const searchUrl = `https://www.lpga.com/athletes/${nameSlug}/overview`;
 
-      // We don't know the numeric ID, so search for it
       const searchRes = await fetch(
         `https://www.lpga.com/athletes?q=${encodeURIComponent(athleteName)}`,
         {
@@ -107,20 +97,17 @@ export async function calculateLPGA(athleteName) {
         const searchHtml = await searchRes.text();
         const $s = cheerio.load(searchHtml);
 
-        // Find the athlete's profile link to get their numeric ID
         $s("a[href*='/athletes/']").each((i, el) => {
           const href = $s(el).attr("href") || "";
           const slugMatch = href.match(/\/athletes\/([^/]+)\/overview/);
           if (!slugMatch) return;
           const slug = slugMatch[1];
           if (slug.includes(nameSlug.split("-")[1])) {
-            // match on last name
             athleteSlug = slug;
           }
         });
       }
 
-      // Fetch athlete's overview page to get their CME points
       if (athleteSlug) {
         const athleteRes = await fetch(
           `https://www.lpga.com/athletes/${athleteSlug}/overview`,
@@ -158,16 +145,72 @@ export async function calculateLPGA(athleteName) {
       console.warn(
         `[${athleteName}] Check failed. Pts: ${athletePoints}, Leader: ${leaderPoints}`,
       );
-      return { regularSeasonScore: 0, postseasonScore: 0 };
+      return { regularSeasonScore: 0, postseasonScore: 0, breakdown: null };
     }
 
     const regularSeasonScore = Math.min(
       Math.round((athletePoints / leaderPoints) * 400),
       400,
     );
-    return { regularSeasonScore, postseasonScore: 0 };
+
+    const breakdown = {
+      sportType: "golf_relative",
+      regularSeason: {
+        label: "Race to CME Globe Points (Relative to Leader)",
+        formula: "(athletePts / leaderPts) × 400",
+        inputs: {
+          athletePoints: athletePoints,
+          leaderPoints: leaderPoints,
+          leaderName: leaderName,
+          athleteRank: null,
+        },
+        computed: regularSeasonScore,
+        max: 400,
+      },
+      postseason: {
+        label: "Major Championship Performance",
+        formula:
+          "Make Cut (+12), Top 10 (+24), Top 5 (+36), Win (+48) — cumulative per Major",
+        milestones: [
+          {
+            label: "Chevron Championship",
+            pts: 0,
+            achieved: false,
+            detail: "Not yet scored",
+          },
+          {
+            label: "KPMG Women's PGA",
+            pts: 0,
+            achieved: false,
+            detail: "Not yet scored",
+          },
+          {
+            label: "U.S. Women's Open",
+            pts: 0,
+            achieved: false,
+            detail: "Not yet scored",
+          },
+          {
+            label: "The Evian Championship",
+            pts: 0,
+            achieved: false,
+            detail: "Not yet scored",
+          },
+          {
+            label: "AIG Women's Open",
+            pts: 0,
+            achieved: false,
+            detail: "Not yet scored",
+          },
+        ],
+        computed: 0,
+        max: 600,
+      },
+    };
+
+    return { regularSeasonScore, postseasonScore: 0, breakdown };
   } catch (error) {
     console.error(`Error calculating LPGA (${athleteName}):`, error.message);
-    return { regularSeasonScore: 0, postseasonScore: 0 };
+    return { regularSeasonScore: 0, postseasonScore: 0, breakdown: null };
   }
 }
