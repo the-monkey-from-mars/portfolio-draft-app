@@ -112,11 +112,7 @@ async function runUpdate() {
         continue;
       }
 
-      let result = {
-        regularSeasonScore: 0,
-        postseasonScore: 0,
-        breakdown: null,
-      };
+      let scores = { regularSeasonScore: 0, postseasonScore: 0 };
 
       // --- THE ROUTING ENGINE ---
 
@@ -124,7 +120,7 @@ async function runUpdate() {
       if ([1, 2, 3, 4, 5, 7, 9, 10, 11].includes(sportId)) {
         console.log(`⏱️ Calculating ${teamName}...`);
         const apiUrl = API_ENDPOINTS[sportId];
-        result = await calculateStandardTeam(apiUniqueId, apiUrl);
+        scores = await calculateStandardTeam(apiUniqueId, apiUrl);
       }
 
       // Soccer — MLS (6) and Premier League (8):
@@ -132,14 +128,14 @@ async function runUpdate() {
         console.log(`⚽ Calculating Table Math for ${teamName}...`);
         const apiUrl = API_ENDPOINTS[sportId];
         const maxTablePoints = sportId === 6 ? 102 : 114;
-        result = await calculateSoccer(apiUniqueId, apiUrl, maxTablePoints);
+        scores = await calculateSoccer(apiUniqueId, apiUrl, maxTablePoints);
       }
 
       // NWSL (18):
       else if (sportId === 18) {
         console.log(`⚽ Calculating NWSL Table Math for ${teamName}...`);
         const apiUrl = API_ENDPOINTS[18];
-        result = await calculateNWSL(apiUniqueId, apiUrl);
+        scores = await calculateNWSL(apiUniqueId, apiUrl);
       }
 
       // Summer International Soccer (19):
@@ -148,10 +144,7 @@ async function runUpdate() {
           console.log(
             `🌍 Calculating ${summerConfig.label} for ${teamName}...`,
           );
-          result = await calculateSummerIntl(
-            apiUniqueId,
-            summerConfig.espnSlug,
-          );
+          scores = await calculateSummerIntl(teamName, summerConfig.espnSlug);
         } else {
           console.log(
             `🌍 No summer intl config for ${currentPortfolioYear}, skipping ${teamName}.`,
@@ -162,48 +155,47 @@ async function runUpdate() {
       // Formula 1 (16):
       else if (sportId === 16) {
         console.log(`🏎️ Calculating F1 Relative Math for ${teamName}...`);
-        result = await calculateF1(teamName);
+        scores = await calculateF1(teamName);
       }
 
       // PGA Golf (14):
       else if (sportId === 14) {
         console.log(`⛳ Calculating PGA Math for ${teamName}...`);
-        result = await calculatePGA(teamName);
+        scores = await calculatePGA(teamName);
       }
 
       // LPGA Golf (15):
       else if (sportId === 15) {
         console.log(`⛳ Calculating LPGA Math for ${teamName}...`);
-        result = await calculateLPGA(teamName);
+        scores = await calculateLPGA(teamName);
       }
 
       // WTA Tennis (13):
       else if (sportId === 13) {
         console.log(`🎾 Calculating WTA Math for ${teamName}...`);
-        result = await calculateWTA(teamName);
+        scores = await calculateWTA(teamName);
       }
 
       // ATP Tennis (12):
       else if (sportId === 12) {
         console.log(`🎾 Calculating ATP Math for ${teamName}...`);
-        result = await calculateATP(teamName);
+        scores = await calculateATP(teamName);
       }
 
       // MMA (17):
       else if (sportId === 17) {
         console.log(`🥊 Calculating Combat Math for ${teamName}...`);
-        result = await calculateMMA(teamName);
+        scores = await calculateMMA(teamName);
       }
 
-      const totalScore = result.regularSeasonScore + result.postseasonScore;
+      const totalScore = scores.regularSeasonScore + scores.postseasonScore;
 
       await supabase
         .from("roster_picks")
         .update({
-          regular_season_score: result.regularSeasonScore,
-          postseason_score: result.postseasonScore,
+          regular_season_score: scores.regularSeasonScore,
+          postseason_score: scores.postseasonScore,
           total_score: totalScore,
-          score_breakdown: result.breakdown || null,
           last_updated_at: new Date().toISOString(),
         })
         .eq("id", pick.id);
