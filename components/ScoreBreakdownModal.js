@@ -400,6 +400,7 @@ export default function ScoreBreakdownModal({
                                   {milestone.detail && (
                                     <div className="text-[10px] text-gray-600 mt-0.5">
                                       {milestone.detail}
+                                      {milestone.math && ` · ${milestone.math}`}
                                     </div>
                                   )}
                                 </div>

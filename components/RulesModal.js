@@ -49,8 +49,10 @@ export default function RulesModal() {
                   <li>Finals / Super Bowl / World Series: +150 pts.</li>
                   <li>Win Championship: +180 pts.</li>
                   <li className="text-gray-400 italic">
-                    Note: Top seeds with Byes automatically earn the points for
-                    the rounds they skip. Play-in teams (like NBA) earn +30 for
+                    Every postseason ladder in these rules is cumulative: a
+                    team earns each round it reached plus every round before it
+                    (an LCS team earns 60 + 90 + 120 = 270). Top seeds with Byes
+                    automatically earn the points for the rounds they skip. Play-in teams (like NBA) earn +30 for
                     entry, and +30 for surviving to the 16-team field.
                   </li>
                 </ul>
@@ -89,6 +91,10 @@ export default function RulesModal() {
                     Reach Rd. of 32 (+3.6), Rd of 16 (+7.1), QF (+14.3), SF
                     (+28.6), Final (+39.2), Win Final (+57.2).
                   </li>
+                  <li className="text-gray-400 italic">
+                    Cumulative: a QF finish earns 3.6 + 7.1 + 14.3 = 25 pts; a
+                    champion earns all six (150 per Major).
+                  </li>
                 </ul>
               </div>
 
@@ -109,6 +115,10 @@ export default function RulesModal() {
                 <p>
                   <strong>LPGA Majors (5 per year):</strong> Make the Cut (+12),
                   Top 10 (+24), Top 5 (+36), Win Major (+48).
+                </p>
+                <p className="text-gray-400 italic">
+                  Cumulative: a PGA Top 5 earns 15 + 30 + 45 = 90; a win earns
+                  150 (LPGA: 120).
                 </p>
               </div>
 
@@ -343,7 +353,8 @@ export default function RulesModal() {
                   <li>Podium Finish: +45 pts</li>
                   <li>Win Race: +60 pts</li>
                   <li className="text-gray-400 italic">
-                    Cumulative: a win earns all four (150 per race).
+                    Cumulative: a points finish earns 15, a top 5 earns 45, a
+                    podium earns 90 and a win earns 150 per race.
                   </li>
                 </ul>
               </div>

@@ -211,6 +211,50 @@ test("college football: bowl win is half a CFP first-round win; regular season u
   assert.equal(s.postseason.computeFromMilestones(both), 50);
 });
 
+test("cumulative rounds: a later round always earns every earlier round", () => {
+  const only = (sport, ...labels) => {
+    const s = SCORING_SCHEMAS[sport];
+    return s.postseason.computeFromMilestones(
+      hydrateMilestones(s, { milestones: labels.map((label) => ({ label, achieved: true })) }),
+    );
+  };
+  assert.equal(only(4, "League Championship"), 270); // MLB: 60 + 90 + 120
+  assert.equal(only(2, "WNBA Finals"), 390); // WNBA: 90 + 130 + 170
+  assert.equal(only(1, "Advance to Round 2"), 150); // NBA: playoff entry 60 + 90
+  assert.equal(only(10, "Sweet 16"), 120); // CBB: 20 + 40 + 60
+  assert.equal(only(9, "Semifinals"), 225); // CFP: 50 + 75 + 100
+  assert.equal(only(9, "Win Non-CFP Bowl Game"), 37.5); // bowl is outside the CFP ladder
+  assert.equal(only(18, "Win NWSL Championship"), 600);
+  assert.equal(only(19, "3rd Place Match Win"), 300); // R32 + R16 + QF + 3rd, not SF
+  assert.equal(only(19, "Win the Final"), 600);
+  assert.equal(only(17, "Win Title Fight"), 350); // MMA bonuses are independent
+});
+
+test("tiered events are cumulative within an event, independent across events", () => {
+  const s = SCORING_SCHEMAS[16]; // F1
+  const pick = (race, tierLabel) =>
+    s.postseason.milestones.map((m) =>
+      m.label === race
+        ? { ...m, selectedTier: m.tiers.findIndex((t) => t.label === tierLabel) }
+        : { ...m, selectedTier: 0 },
+    );
+  assert.equal(s.postseason.computeFromMilestones(pick("British GP", "Podium (P2–P3)")), 90);
+  assert.equal(s.postseason.computeFromMilestones(pick("British GP", "Race Win")), 150);
+  assert.equal(s.postseason.computeFromMilestones(pick("Italian GP", "Top 5 (P4–P5)")), 45);
+  // Piastri-style P4/P5: breakdown shows the working behind 45
+  const bd = s.postseason.buildBreakdown(pick("Monaco GP", "Top 5 (P4–P5)"), 45);
+  const monaco = bd.milestones.find((m) => m.label === "Monaco GP");
+  assert.equal(monaco.pts, 45);
+  assert.equal(monaco.detail, "Top 5 (P4–P5)");
+  assert.equal(monaco.math, "15 + 30");
+  const tennis = SCORING_SCHEMAS[12];
+  const wimbledonQF = tennis.postseason.milestones.map((m) => ({
+    ...m,
+    selectedTier: m.label === "Wimbledon" ? 3 : 0,
+  }));
+  assert.equal(tennis.postseason.computeFromMilestones(wimbledonQF), 25); // 3.6 + 7.1 + 14.3
+});
+
 test("name matching", () => {
   assert.ok(namesMatch("Andrea Kimi Antonelli", "Kimi Antonelli"));
   assert.ok(namesMatch("Nico Hülkenberg", "Nico Hulkenberg"));
