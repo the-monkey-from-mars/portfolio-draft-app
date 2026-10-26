@@ -119,7 +119,8 @@ export default function RulesModal() {
                 </h3>
                 <p>
                   <strong>Regular Season (400 pts max):</strong> Final Win
-                  Percentage * 400.
+                  Percentage * 400, through conference tournaments. NCAA
+                  Tournament games never count toward win percentage.
                 </p>
                 <p>
                   <strong>March Madness (600 pts max):</strong>
@@ -147,10 +148,11 @@ export default function RulesModal() {
                 </h3>
                 <p>
                   <strong>Regular Season (400 pts max):</strong> Final Win
-                  Percentage * 400.
+                  Percentage * 400, through conference championship games.
+                  Bowl and CFP games never count toward win percentage.
                 </p>
                 <p>
-                  <strong>CFP Postseason (600 pts max):</strong>
+                  <strong>CFP &amp; Bowl Postseason (600 pts max):</strong>
                 </p>
                 <ul className="list-disc pl-5 mt-1">
                   <li>Make 12-Team CFP: +50 pts</li>
@@ -158,6 +160,10 @@ export default function RulesModal() {
                   <li>Advance to Semifinals: +100 pts</li>
                   <li>Advance to National Championship: +150 pts</li>
                   <li>Win National Championship: +225 pts</li>
+                  <li>
+                    Win a non-CFP bowl game: +37.5 pts (half of a CFP
+                    first-round win)
+                  </li>
                   <li className="text-gray-400 italic">
                     Note: Top teams receiving a first-round bye automatically
                     earn the first 125 pts.

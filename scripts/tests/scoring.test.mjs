@@ -192,6 +192,25 @@ test("F1: Crown Jewel GP points removed from regular season, awarded as postseas
   }
 });
 
+test("college football: bowl win is half a CFP first-round win; regular season unaffected", () => {
+  const s = SCORING_SCHEMAS[9];
+  const bowl = hydrateMilestones(s, {
+    milestones: [{ label: "Win Non-CFP Bowl Game", achieved: true }],
+  });
+  const r = scorePick(s, { wins: 9, losses: 3 }, bowl);
+  assert.equal(r.regularSeasonScore, 300); // 9-3 regular season only
+  assert.equal(r.postseasonScore, 37.5);
+  assert.equal(r.totalScore, 337.5);
+  // Ticking both by mistake only counts the larger of the two
+  const both = hydrateMilestones(s, {
+    milestones: [
+      { label: "Win Non-CFP Bowl Game", achieved: true },
+      { label: "Make 12-Team CFP", achieved: true },
+    ],
+  });
+  assert.equal(s.postseason.computeFromMilestones(both), 50);
+});
+
 test("name matching", () => {
   assert.ok(namesMatch("Andrea Kimi Antonelli", "Kimi Antonelli"));
   assert.ok(namesMatch("Nico Hülkenberg", "Nico Hulkenberg"));
