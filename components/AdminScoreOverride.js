@@ -97,7 +97,9 @@ export default function AdminScoreOverride() {
       setRegInputs(defaultRegInputs);
 
       // Pre-populate milestones from the saved breakdown (same logic the cron uses)
-      const defaultMilestones = hydrateMilestones(schema, existing?.postseason);
+      const defaultMilestones = schema.postseason.normalize(
+        hydrateMilestones(schema, existing?.postseason),
+      );
       setPostMilestones(defaultMilestones);
 
       recomputePreview(schema, defaultRegInputs, defaultMilestones);
@@ -125,20 +127,26 @@ export default function AdminScoreOverride() {
     if (schema) recomputePreview(schema, newInputs, postMilestones);
   };
 
+  // Rounds are cumulative: ticking a later round also ticks every earlier
+  // round (schema.postseason.normalize), so the form always shows exactly
+  // what will be scored.
+  const applyMilestones = (updated) => {
+    const schema = pickSchema(editingPick);
+    const normalized = schema ? schema.postseason.normalize(updated) : updated;
+    setPostMilestones(normalized);
+    if (schema) recomputePreview(schema, regInputs, normalized);
+  };
+
   const handleMilestoneToggle = (index) => {
     const updated = [...postMilestones];
     updated[index] = { ...updated[index], achieved: !updated[index].achieved };
-    setPostMilestones(updated);
-    const schema = pickSchema(editingPick);
-    if (schema) recomputePreview(schema, regInputs, updated);
+    applyMilestones(updated);
   };
 
   const handleEventTierChange = (index, tierIndex) => {
     const updated = [...postMilestones];
     updated[index] = { ...updated[index], selectedTier: tierIndex };
-    setPostMilestones(updated);
-    const schema = pickSchema(editingPick);
-    if (schema) recomputePreview(schema, regInputs, updated);
+    applyMilestones(updated);
   };
 
   // ─── Save ────────────────────────────────────────────────
@@ -593,7 +601,9 @@ export default function AdminScoreOverride() {
                                   {milestone.tiers.map((tier, tIdx) => (
                                     <option key={tIdx} value={tIdx}>
                                       {tier.label}
-                                      {tIdx > 0 ? ` (+${tier.pts})` : ""}
+                                      {tIdx > 0
+                                        ? ` — ${formatPts(getEventPoints({ ...milestone, selectedTier: tIdx }))} pts total`
+                                        : ""}
                                     </option>
                                   ))}
                                 </select>
