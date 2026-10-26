@@ -241,6 +241,12 @@ test("tiered events are cumulative within an event, independent across events", 
   assert.equal(s.postseason.computeFromMilestones(pick("British GP", "Podium (P2–P3)")), 90);
   assert.equal(s.postseason.computeFromMilestones(pick("British GP", "Race Win")), 150);
   assert.equal(s.postseason.computeFromMilestones(pick("Italian GP", "Top 5 (P4–P5)")), 45);
+  // Piastri-style P4/P5: breakdown shows the working behind 45
+  const bd = s.postseason.buildBreakdown(pick("Monaco GP", "Top 5 (P4–P5)"), 45);
+  const monaco = bd.milestones.find((m) => m.label === "Monaco GP");
+  assert.equal(monaco.pts, 45);
+  assert.equal(monaco.detail, "Top 5 (P4–P5)");
+  assert.equal(monaco.math, "15 + 30");
   const tennis = SCORING_SCHEMAS[12];
   const wimbledonQF = tennis.postseason.milestones.map((m) => ({
     ...m,
