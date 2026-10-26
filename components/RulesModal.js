@@ -34,8 +34,10 @@ export default function RulesModal() {
                   Standard Team Sports (NBA, NFL, MLB, NHL)
                 </h3>
                 <p>
-                  <strong>Regular Season (400 pts max):</strong> Final Win
-                  Percentage * 400.
+                  <strong>Regular Season (400 pts max):</strong> NBA, NFL,
+                  MLB: Final Win Percentage * 400 (ties count as half a win).
+                  NHL: (Team&apos;s Table Points / 168) * 400 — the 84-game
+                  season is worth 168 points (2 per win, 1 per OT/SO loss).
                 </p>
                 <p>
                   <strong>Postseason (600 pts max):</strong>
@@ -106,7 +108,7 @@ export default function RulesModal() {
                 </p>
                 <p>
                   <strong>LPGA Majors (5 per year):</strong> Make the Cut (+12),
-                  Top 10 (+24)... etc.
+                  Top 10 (+24), Top 5 (+36), Win Major (+48).
                 </p>
               </div>
 
@@ -117,19 +119,20 @@ export default function RulesModal() {
                 </h3>
                 <p>
                   <strong>Regular Season (400 pts max):</strong> Final Win
-                  Percentage * 400.
+                  Percentage * 400, through conference tournaments. NCAA
+                  Tournament games never count toward win percentage.
                 </p>
                 <p>
                   <strong>March Madness (600 pts max):</strong>
                 </p>
                 <ul className="list-disc pl-5 mt-1">
-                  <li>Round of 64: +20 pts</li>
+                  <li>Make the Round of 64: +20 pts</li>
                   <li>Round of 32: +40 pts</li>
                   <li>Sweet 16: +60 pts</li>
                   <li>Elite 8: +80 pts</li>
                   <li>Final Four: +110 pts</li>
                   <li>Title Game: +130 pts</li>
-                  <li>National Champion: +100 pts</li>
+                  <li>National Champion: +160 pts</li>
                   <li className="text-gray-400 italic">
                     Note: Teams that make the First Four Round will receive 10
                     points for making the field, and receive the 10 additional
@@ -145,10 +148,11 @@ export default function RulesModal() {
                 </h3>
                 <p>
                   <strong>Regular Season (400 pts max):</strong> Final Win
-                  Percentage * 400.
+                  Percentage * 400, through conference championship games.
+                  Bowl and CFP games never count toward win percentage.
                 </p>
                 <p>
-                  <strong>CFP Postseason (600 pts max):</strong>
+                  <strong>CFP &amp; Bowl Postseason (600 pts max):</strong>
                 </p>
                 <ul className="list-disc pl-5 mt-1">
                   <li>Make 12-Team CFP: +50 pts</li>
@@ -156,6 +160,10 @@ export default function RulesModal() {
                   <li>Advance to Semifinals: +100 pts</li>
                   <li>Advance to National Championship: +150 pts</li>
                   <li>Win National Championship: +225 pts</li>
+                  <li>
+                    Win a non-CFP bowl game: +37.5 pts (half of a CFP
+                    first-round win)
+                  </li>
                   <li className="text-gray-400 italic">
                     Note: Top teams receiving a first-round bye automatically
                     earn the first 125 pts.
@@ -169,8 +177,9 @@ export default function RulesModal() {
                   MLS
                 </h3>
                 <p>
-                  <strong>Regular Season (400 pts max):</strong> Final Win
-                  Percentage * 400.
+                  <strong>Regular Season (400 pts max):</strong> (Team&apos;s
+                  Table Points / 102) * 400 — 34 games, 3 points per win and
+                  1 per draw.
                 </p>
                 <p>
                   <strong>MLS Cup Playoffs (600 pts max):</strong>
@@ -289,22 +298,24 @@ export default function RulesModal() {
                 </ul>
               </div>
 
-              {/* LOVB Volleyball */}
+              {/* NCAA Women's Volleyball */}
               <div>
                 <h3 className="text-lg font-bold text-blue-400 border-b border-gray-700 pb-1 mb-2">
-                  LOVB Volleyball
+                  NCAA Women&apos;s Volleyball (D-1)
                 </h3>
                 <p>
                   <strong>Regular Season (400 pts max):</strong> Final Win
-                  Percentage * 400.
+                  Percentage * 400 (NCAA Tournament matches excluded).
                 </p>
                 <p>
-                  <strong>Postseason (600 pts max):</strong>
+                  <strong>NCAA Tournament (600 pts max):</strong>
                 </p>
                 <ul className="list-disc pl-5 mt-1">
-                  <li>Make Playoffs / Semifinals: +100 pts</li>
-                  <li>Advance to Finals: +200 pts</li>
-                  <li>Win Championship: +300 pts</li>
+                  <li>Make NCAA Tournament: +60 pts</li>
+                  <li>Sweet 16: +90 pts</li>
+                  <li>Elite 8: +120 pts</li>
+                  <li>Final Four: +150 pts</li>
+                  <li>Win Championship: +180 pts</li>
                 </ul>
               </div>
 
@@ -316,7 +327,9 @@ export default function RulesModal() {
                 <p>
                   <strong>Regular Season (400 pts max):</strong> (Your
                   Driver&apos;s non-Crown-Jewel WDC Pts / #1 Driver&apos;s
-                  non-Crown-Jewel WDC Pts) * 400.
+                  non-Crown-Jewel WDC Pts) * 400. Every points-paying race
+                  counts, sprints included; only the four Crown Jewel Grands
+                  Prix are set aside.
                 </p>
                 <p>
                   <strong>
@@ -329,6 +342,9 @@ export default function RulesModal() {
                   <li>Top 5 Finish: +30 pts</li>
                   <li>Podium Finish: +45 pts</li>
                   <li>Win Race: +60 pts</li>
+                  <li className="text-gray-400 italic">
+                    Cumulative: a win earns all four (150 per race).
+                  </li>
                 </ul>
               </div>
 

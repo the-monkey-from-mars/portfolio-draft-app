@@ -20,7 +20,10 @@ jobs:
           node-version: "20"
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
+
+      - name: Check scoring rules add up (400 + 600 per sport)
+        run: npm run validate:scoring
 
       - name: Run Score Update Script
         env:
