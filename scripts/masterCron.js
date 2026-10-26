@@ -18,6 +18,8 @@
  *   node scripts/masterCron.js --dry-run            # print changes, write nothing
  *   node scripts/masterCron.js --dry-run --sport=16 # one sport
  *   node scripts/masterCron.js --dry-run --ignore-window --year=2026-2027
+ *   node scripts/masterCron.js --dry-run --sport=10 --include-off --ignore-window
+ *                                     # test a sport before switching it on
  */
 import * as dotenv from "dotenv";
 dotenv.config({ path: ".env.local", quiet: true });
@@ -48,6 +50,7 @@ const flag = (name) => args.includes(`--${name}`);
 const opt = (name) => args.find((a) => a.startsWith(`--${name}=`))?.split("=")[1];
 const DRY_RUN = flag("dry-run");
 const IGNORE_WINDOW = flag("ignore-window");
+const INCLUDE_OFF = flag("include-off"); // dry-run testing of switched-off sports
 const ONLY_SPORT = opt("sport") ? Number(opt("sport")) : null;
 const ONLY_YEAR = opt("year") || null;
 
@@ -66,6 +69,13 @@ const WIN_PCT_FEEDS = {
   9: `${ESPN}/football/college-football/standings?group=80`, // FBS
   10: `${ESPN}/basketball/mens-college-basketball/standings?group=50`, // D-I
   11: `${ESPN}/basketball/womens-college-basketball/standings?group=50`, // D-I
+};
+// If a college team is missing from the conference standings feed, count
+// its record from its own schedule instead (regular season only).
+const SCHEDULE_FALLBACK = {
+  9: "football/college-football",
+  10: "basketball/mens-college-basketball",
+  11: "basketball/womens-college-basketball",
 };
 const TABLE_FEEDS = {
   5: { url: `${ESPN}/hockey/nhl/standings`, kind: "hockey" },
@@ -89,7 +99,15 @@ async function regularSeasonInputs(pick, window) {
   const apiId = pick.entities.api_unique_id;
   const name = pick.entities.display_name;
 
-  if (WIN_PCT_FEEDS[sportId]) return winPctInputs(WIN_PCT_FEEDS[sportId], season, apiId);
+  if (WIN_PCT_FEEDS[sportId]) {
+    try {
+      return await winPctInputs(WIN_PCT_FEEDS[sportId], season, apiId);
+    } catch (err) {
+      if (!SCHEDULE_FALLBACK[sportId]) throw err;
+      const viaSchedule = await scheduleRecordInputs(SCHEDULE_FALLBACK[sportId], season, apiId);
+      return { ...viaSchedule, note: `standings miss (${err.message}); used team schedule` };
+    }
+  }
   if (TABLE_FEEDS[sportId]) {
     const { url, kind } = TABLE_FEEDS[sportId];
     return tablePointsInputs(url, season, apiId, kind);
@@ -156,7 +174,7 @@ async function run() {
     // Skip reasons, in order of precedence
     let skip = null;
     if (pick.is_manual_override) skip = "manual override";
-    else if (!active[pick.sport_id]) skip = "sport switched off";
+    else if (!active[pick.sport_id] && !(INCLUDE_OFF && DRY_RUN)) skip = "sport switched off";
     else if (!window) skip = `no season window for ${pick.portfolio_year}`;
     else if (!IGNORE_WINDOW && !isInSeasonWindow(window, today))
       skip = `outside season window (${window.start} → ${window.end})`;
@@ -190,6 +208,7 @@ async function run() {
         Number(pick.postseason_score) !== scored.postseasonScore;
 
       rows.push({
+        note2: source.note,
         label,
         old: `${Number(pick.regular_season_score)} + ${Number(pick.postseason_score)} = ${Number(pick.total_score)}`,
         new: `${scored.regularSeasonScore} + ${scored.postseasonScore} = ${scored.totalScore}`,
@@ -227,6 +246,7 @@ async function run() {
     const mark = r.changed ? "✏️ " : "   ";
     console.log(`${mark}${r.label}: ${r.old}  →  ${r.new}`);
     if (DRY_RUN) console.log(`      inputs ${JSON.stringify(r.inputs)}`);
+    if (r.note2) console.log(`      ℹ️ ${r.note2}`);
   }
   for (const w of seasonWarnings) console.warn(`⚠️ ${w}`);
   for (const f of failures) console.error(`❌ ${f}`);
