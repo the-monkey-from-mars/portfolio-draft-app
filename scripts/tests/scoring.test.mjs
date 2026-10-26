@@ -163,6 +163,10 @@ test("F1: Crown Jewel GP points removed from regular season, awarded as postseas
             driver("Oscar Piastri", 144, 7),
             driver("Isack Hadjar", 105, 8),
             driver("Fernando Alonso", 7, 18),
+            // Other Crown Jewel finishers (keeps the name-match check quiet)
+            ...["Liam Lawson", "Arvid Lindblad", "Pierre Gasly", "Alexander Albon",
+                "Esteban Ocon", "Gabriel Bortoleto", "Franco Colapinto", "Yuki Tsunoda"]
+              .map((n, i) => driver(n, 40, 9 + i)),
           ],
         },
       },

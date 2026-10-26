@@ -10,15 +10,15 @@
  * untouched — a broken feed never silently zeroes a team.
  */
 
-const UA = { "User-Agent": "Mozilla/5.0 (portfolio-draft-app score bot)" };
-
 // One fetch per URL per run (190 picks share ~15 standings feeds).
 const cache = new Map();
 export function fetchJson(url) {
   if (!cache.has(url)) {
     cache.set(
       url,
-      fetch(url, { headers: UA }).then(async (res) => {
+      // No custom headers: ESPN's firewall returns 403 to user agents that
+      // identify as bots. Node's default fetch headers are accepted.
+      fetch(url).then(async (res) => {
         if (!res.ok) throw new Error(`HTTP ${res.status} from ${url}`);
         return res.json();
       }),
