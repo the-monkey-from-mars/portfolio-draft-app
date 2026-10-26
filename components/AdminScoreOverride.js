@@ -1,8 +1,18 @@
 "use client";
 import { useState } from "react";
 import { supabase } from "../lib/supabase";
-import { SPORT_CONFIG } from "../lib/sportConfig";
-import { SCORING_SCHEMAS } from "../lib/scoringSchemas";
+import { SPORT_CONFIG, SUMMER_INTL_SOCCER_CONFIG } from "../lib/sportConfig";
+import {
+  schemaFor,
+  hydrateMilestones,
+  scorePick,
+  eventPoints,
+} from "../lib/scoringSchemas";
+
+const pickSchema = (pick) =>
+  pick
+    ? schemaFor(pick.sport_id, SUMMER_INTL_SOCCER_CONFIG[pick.portfolio_year])
+    : null;
 
 export default function AdminScoreOverride() {
   const [isOpen, setIsOpen] = useState(false);
@@ -37,7 +47,7 @@ export default function AdminScoreOverride() {
     const { data, error } = await supabase
       .from("roster_picks")
       .select(
-        `id, sport_id, regular_season_score, postseason_score, total_score,
+        `id, sport_id, portfolio_year, regular_season_score, postseason_score, total_score,
         is_manual_override, override_note, last_updated_at, score_breakdown,
         users ( name ), sports ( name ), entities ( display_name )`,
       )
@@ -70,7 +80,7 @@ export default function AdminScoreOverride() {
     setIsManualOverride(pick.is_manual_override || false);
     setOverrideNote(pick.override_note || "");
 
-    const schema = SCORING_SCHEMAS[pick.sport_id];
+    const schema = pickSchema(pick);
     const existing = pick.score_breakdown;
 
     if (schema) {
@@ -86,21 +96,8 @@ export default function AdminScoreOverride() {
       });
       setRegInputs(defaultRegInputs);
 
-      // Pre-populate milestones from existing breakdown
-      const defaultMilestones = schema.postseason.milestones.map((m) => {
-        const saved = existing?.postseason?.milestones?.find(
-          (sm) => sm.label === m.label,
-        );
-        if (m.type === "event" && m.tiers) {
-          let savedTier = 0;
-          if (saved && saved.detail) {
-            const tierIdx = m.tiers.findIndex((t) => t.label === saved.detail);
-            if (tierIdx > 0) savedTier = tierIdx;
-          }
-          return { ...m, selectedTier: savedTier };
-        }
-        return { ...m, achieved: saved ? saved.achieved : false };
-      });
+      // Pre-populate milestones from the saved breakdown (same logic the cron uses)
+      const defaultMilestones = hydrateMilestones(schema, existing?.postseason);
       setPostMilestones(defaultMilestones);
 
       recomputePreview(schema, defaultRegInputs, defaultMilestones);
@@ -124,7 +121,7 @@ export default function AdminScoreOverride() {
       newInputs[key] = value === "" ? "" : Number(value);
     }
     setRegInputs(newInputs);
-    const schema = SCORING_SCHEMAS[editingPick.sport_id];
+    const schema = pickSchema(editingPick);
     if (schema) recomputePreview(schema, newInputs, postMilestones);
   };
 
@@ -132,7 +129,7 @@ export default function AdminScoreOverride() {
     const updated = [...postMilestones];
     updated[index] = { ...updated[index], achieved: !updated[index].achieved };
     setPostMilestones(updated);
-    const schema = SCORING_SCHEMAS[editingPick.sport_id];
+    const schema = pickSchema(editingPick);
     if (schema) recomputePreview(schema, regInputs, updated);
   };
 
@@ -140,7 +137,7 @@ export default function AdminScoreOverride() {
     const updated = [...postMilestones];
     updated[index] = { ...updated[index], selectedTier: tierIndex };
     setPostMilestones(updated);
-    const schema = SCORING_SCHEMAS[editingPick.sport_id];
+    const schema = pickSchema(editingPick);
     if (schema) recomputePreview(schema, regInputs, updated);
   };
 
@@ -150,28 +147,27 @@ export default function AdminScoreOverride() {
     if (!editingPick) return;
     setSaving(editingPick.id);
 
-    const schema = SCORING_SCHEMAS[editingPick.sport_id];
+    const schema = pickSchema(editingPick);
     let regularSeasonScore, postseasonScore, scoreBreakdown;
 
-    if (schema) {
-      const regResult = schema.regularSeason.compute(regInputs);
-      regularSeasonScore = regResult.score;
+    if (schema && isManualOverride) {
+      // Locked: the admin's regular-season inputs AND milestones are final.
+      const scored = scorePick(schema, regInputs, postMilestones);
+      regularSeasonScore = scored.regularSeasonScore;
+      postseasonScore = scored.postseasonScore;
+      scoreBreakdown = scored.breakdown;
+    } else if (schema) {
+      // Not locked: save the postseason only. The regular season stays
+      // automatic, and the nightly cron carries these milestones forward.
+      regularSeasonScore = Number(editingPick.regular_season_score) || 0;
       postseasonScore = schema.postseason.computeFromMilestones(postMilestones);
-
-      const regBreakdown = schema.regularSeason.buildBreakdown(
-        regInputs,
-        regularSeasonScore,
-        regResult.derived || {},
-      );
-      const postBreakdown = schema.postseason.buildBreakdown(
-        postMilestones,
-        postseasonScore,
-      );
-
       scoreBreakdown = {
+        ...(editingPick.score_breakdown || {}),
         sportType: schema.sportType,
-        regularSeason: regBreakdown,
-        postseason: postBreakdown,
+        postseason: schema.postseason.buildBreakdown(
+          postMilestones,
+          postseasonScore,
+        ),
       };
     } else {
       regularSeasonScore = Number(regInputs.rawRegScore) || 0;
@@ -179,7 +175,7 @@ export default function AdminScoreOverride() {
       scoreBreakdown = null;
     }
 
-    const totalScore = regularSeasonScore + postseasonScore;
+    const totalScore = Math.round((regularSeasonScore + postseasonScore) * 10) / 10;
 
     const { error } = await supabase
       .from("roster_picks")
@@ -244,23 +240,19 @@ export default function AdminScoreOverride() {
 
   // ─── Helpers for event-tier point display ────────────────
 
-  const getEventPoints = (milestone) => {
-    const sel = milestone.selectedTier || 0;
-    if (sel === 0) return 0;
-    if (milestone.cumulative) {
-      let pts = 0;
-      for (let i = 1; i <= sel; i++) pts += milestone.tiers[i]?.pts || 0;
-      return pts;
-    }
-    return milestone.tiers[sel]?.pts || 0;
-  };
+  const getEventPoints = eventPoints;
 
   const formatPts = (pts) =>
     Number.isInteger(pts) ? String(pts) : pts.toFixed(1);
 
   // ─── Current editor schema ───────────────────────────────
 
-  const schema = editingPick ? SCORING_SCHEMAS[editingPick.sport_id] : null;
+  const schema = pickSchema(editingPick);
+  // Unlocked picks keep their automatic regular-season score.
+  const shownRegScore =
+    editingPick && !isManualOverride
+      ? Number(editingPick.regular_season_score) || 0
+      : previewRegScore;
 
   // ─── Render ──────────────────────────────────────────────
 
@@ -294,9 +286,9 @@ export default function AdminScoreOverride() {
                 Admin Score Overrides
               </h2>
               <p className="text-gray-400 text-xs mt-1">
-                Enter raw stats and the system computes scores + breakdown
-                automatically. Picks marked &quot;Override&quot; are skipped by
-                the daily cron.
+                Record postseason results here; the regular season updates
+                automatically. Lock a pick as an override only when its data
+                feed is wrong or missing.
               </p>
 
               <div className="flex flex-wrap gap-3 mt-4">
@@ -430,7 +422,7 @@ export default function AdminScoreOverride() {
                 {picks.filter((p) => p.is_manual_override).length > 0 &&
                   ` · ${picks.filter((p) => p.is_manual_override).length} override(s) active`}
               </span>
-              <span>Overridden picks are skipped by the daily cron job.</span>
+              <span>Overridden picks are skipped by the nightly update.</span>
             </div>
           </div>
 
@@ -459,7 +451,7 @@ export default function AdminScoreOverride() {
                         Regular
                       </div>
                       <div className="text-lg font-bold text-blue-400">
-                        {previewRegScore}
+                        {shownRegScore}
                         <span className="text-gray-600 text-xs">/400</span>
                       </div>
                     </div>
@@ -477,7 +469,7 @@ export default function AdminScoreOverride() {
                         Total
                       </div>
                       <div className="text-lg font-bold text-green-400">
-                        {previewRegScore + previewPostScore}
+                        {Math.round((shownRegScore + previewPostScore) * 10) / 10}
                         <span className="text-gray-600 text-xs">/1000</span>
                       </div>
                     </div>
@@ -490,9 +482,14 @@ export default function AdminScoreOverride() {
                     <>
                       {/* ── Regular Season Inputs ── */}
                       <div>
-                        <h4 className="text-sm font-bold text-blue-400 uppercase tracking-wide mb-3">
+                        <h4 className="text-sm font-bold text-blue-400 uppercase tracking-wide mb-1">
                           Regular Season Inputs
                         </h4>
+                        <p className="text-xs text-gray-500 mb-3">
+                          {isManualOverride
+                            ? "Locked: these inputs replace the automatic score."
+                            : "Automatic: the nightly update sets the regular season. These inputs are only used if you lock the pick below."}
+                        </p>
                         <div className="space-y-3">
                           {schema.regularSeason.fields.map((field) => (
                             <div key={field.key}>
@@ -547,9 +544,14 @@ export default function AdminScoreOverride() {
 
                       {/* ── Postseason Milestones ── */}
                       <div>
-                        <h4 className="text-sm font-bold text-yellow-400 uppercase tracking-wide mb-3">
+                        <h4 className="text-sm font-bold text-yellow-400 uppercase tracking-wide mb-1">
                           {schema.postseason.label}
                         </h4>
+                        <p className="text-xs text-gray-500 mb-3">
+                          {editingPick.sport_id === 16 && !isManualOverride
+                            ? "Crown Jewel results come from F1_CROWN_JEWELS in lib/sportConfig.js and are rescored nightly; edits here are overwritten unless the pick is locked."
+                            : "Saved milestones are kept by the nightly update."}
+                        </p>
                         <div className="space-y-1.5">
                           {postMilestones.map((milestone, idx) =>
                             milestone.type === "event" && milestone.tiers ? (
@@ -677,8 +679,9 @@ export default function AdminScoreOverride() {
                         </span>
                         <br />
                         <span className="text-xs text-gray-500">
-                          When locked, the daily cron will skip this pick and
-                          preserve your manual scores.
+                          Locked picks are skipped by the nightly update; both
+                          halves use what you enter here. Leave unlocked to
+                          record postseason results only.
                         </span>
                       </label>
                     </div>
@@ -713,7 +716,7 @@ export default function AdminScoreOverride() {
                   >
                     {saving === editingPick.id
                       ? "Saving..."
-                      : `Save (${previewRegScore + previewPostScore} pts)`}
+                      : `Save (${Math.round((shownRegScore + previewPostScore) * 10) / 10} pts)`}
                   </button>
                 </div>
               </div>

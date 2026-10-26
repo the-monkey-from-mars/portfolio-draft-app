@@ -7,7 +7,11 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "scores": "node scripts/masterCron.js",
+    "scores:dry-run": "node scripts/masterCron.js --dry-run",
+    "validate:scoring": "node scripts/validateScoring.mjs",
+    "test": "node --test scripts/tests/scoring.test.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.98.0",

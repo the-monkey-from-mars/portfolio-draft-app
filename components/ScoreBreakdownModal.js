@@ -23,7 +23,7 @@ const INPUT_LABELS = {
   wins: "Wins",
   losses: "Losses",
   draws: "Draws",
-  ties: "Draws",
+  ties: "Ties",
   gamesPlayed: "Games Played",
   winPct: "Win %",
   tablePoints: "Table Points",
@@ -41,6 +41,8 @@ const INPUT_LABELS = {
   groupWinnerBonus: "Group Winner Bonus",
   totalWins: "Total Wins",
   totalFights: "Total Fights",
+  wdcPoints: "Total WDC Points",
+  crownJewelPoints: "Crown Jewel GP Points (excluded)",
 };
 
 // Format values nicely for display

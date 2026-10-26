@@ -74,10 +74,13 @@ export default function AdminHelpModal() {
                   3. Automated GitHub Script
                 </h3>
                 <p>
-                  Ensure your `daily-update.yml` Cron Job in GitHub is enabled.
-                  If you need to pause updates during a dead period in the
-                  summer, you can disable the workflow directly in the GitHub
-                  Actions tab.
+                  The nightly <code>daily-update.yml</code> job only updates a
+                  sport when it is switched on here AND today is inside its
+                  season window for that portfolio year
+                  (<code>SEASON_WINDOWS</code> in <code>lib/sportConfig.js</code>).
+                  Add the next portfolio year&apos;s windows before each draft.
+                  To preview changes without writing anything, run{" "}
+                  <code>npm run scores:dry-run</code> locally.
                 </p>
               </div>
 
@@ -86,12 +89,12 @@ export default function AdminHelpModal() {
                   4. Postseason & High-Leverage Math (The 600 Valuable Points)
                 </h3>
                 <p>
-                  Currently, the backend micro-scripts have all postseason
-                  scores explicitly set to <code>0</code>. As leagues enter the
-                  playoffs or major tournaments occur, you will need to open the
-                  specific script in the <code>scripts/sports/</code> folder and
-                  update the code to capture bracket advancements or major
-                  finishes.
+                  Enter playoff rounds, majors, Slams and knockout results in
+                  Score Overrides without locking the pick: the regular season
+                  keeps updating automatically and the nightly job carries your
+                  postseason milestones forward. F1 Crown Jewel results are the
+                  exception — add each race&apos;s official top 10 to{" "}
+                  <code>F1_CROWN_JEWELS</code> in <code>lib/sportConfig.js</code>.
                 </p>
               </div>
 
